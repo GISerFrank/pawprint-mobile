@@ -291,7 +291,7 @@ class ImageUploadPlaceholder extends StatelessWidget {
                         color: AppColors.primary100,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.camera_alt,
                         color: AppColors.primary600,
                         size: 24,
@@ -300,7 +300,7 @@ class ImageUploadPlaceholder extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       label,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                         color: AppColors.stone500,

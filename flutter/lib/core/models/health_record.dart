@@ -22,24 +22,40 @@ class HealthRecord extends Equatable {
   });
 
   factory HealthRecord.fromJson(Map<String, dynamic> json) {
+    DateTime? recordDate;
+    if (json['record_date'] != null) {
+      try {
+        recordDate = DateTime.parse(json['record_date'].toString());
+      } catch (_) {}
+    }
+    
+    DateTime? createdAt;
+    if (json['created_at'] != null) {
+      try {
+        createdAt = DateTime.parse(json['created_at'].toString());
+      } catch (_) {}
+    }
+    
     return HealthRecord(
-      id: json['id'] as String,
-      petId: json['pet_id'] as String,
-      recordType: HealthRecordType.fromString(json['record_type'] as String),
-      recordDate: DateTime.parse(json['record_date'] as String),
-      value: json['value'] as String?,
-      note: json['note'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      id: json['id']?.toString() ?? '',
+      petId: json['pet_id']?.toString() ?? '',
+      recordType: HealthRecordType.fromString(json['record_type']?.toString() ?? 'Weight'),
+      recordDate: recordDate ?? DateTime.now(),
+      value: json['value']?.toString(),
+      note: json['note']?.toString(),
+      createdAt: createdAt ?? DateTime.now(),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'pet_id': petId,
       'record_type': recordType.displayName,
       'record_date': recordDate.toIso8601String().split('T').first,
       'value': value,
       'note': note,
+      'created_at': createdAt.toIso8601String(),
     };
   }
 
@@ -88,24 +104,40 @@ class Reminder extends Equatable {
   });
 
   factory Reminder.fromJson(Map<String, dynamic> json) {
+    DateTime? scheduledAt;
+    if (json['scheduled_at'] != null) {
+      try {
+        scheduledAt = DateTime.parse(json['scheduled_at'].toString());
+      } catch (_) {}
+    }
+    
+    DateTime? createdAt;
+    if (json['created_at'] != null) {
+      try {
+        createdAt = DateTime.parse(json['created_at'].toString());
+      } catch (_) {}
+    }
+    
     return Reminder(
-      id: json['id'] as String,
-      petId: json['pet_id'] as String,
-      title: json['title'] as String,
-      reminderType: ReminderType.fromString(json['reminder_type'] as String),
-      scheduledAt: DateTime.parse(json['scheduled_at'] as String),
+      id: json['id']?.toString() ?? '',
+      petId: json['pet_id']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      reminderType: ReminderType.fromString(json['reminder_type']?.toString() ?? 'Other'),
+      scheduledAt: scheduledAt ?? DateTime.now(),
       isCompleted: json['is_completed'] as bool? ?? false,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      createdAt: createdAt ?? DateTime.now(),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'pet_id': petId,
       'title': title,
       'reminder_type': reminderType.displayName,
       'scheduled_at': scheduledAt.toIso8601String(),
       'is_completed': isCompleted,
+      'created_at': createdAt.toIso8601String(),
     };
   }
 
@@ -166,23 +198,27 @@ class AIAnalysisSession extends Equatable {
 
   factory AIAnalysisSession.fromJson(Map<String, dynamic> json) {
     return AIAnalysisSession(
-      id: json['id'] as String,
-      petId: json['pet_id'] as String,
-      symptoms: json['symptoms'] as String,
-      bodyPart: BodyPart.fromString(json['body_part'] as String),
+      id: json['id'] as String? ?? '',
+      petId: json['pet_id'] as String? ?? '',
+      symptoms: json['symptoms'] as String? ?? '',
+      bodyPart: BodyPart.fromString(json['body_part'] as String? ?? 'Other'),
       imageUrl: json['image_url'] as String?,
-      analysisResult: json['analysis_result'] as String,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      analysisResult: json['analysis_result'] as String? ?? '',
+      createdAt: json['created_at'] != null 
+          ? DateTime.parse(json['created_at'] as String) 
+          : DateTime.now(),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'pet_id': petId,
       'symptoms': symptoms,
       'body_part': bodyPart.displayName,
       'image_url': imageUrl,
       'analysis_result': analysisResult,
+      'created_at': createdAt.toIso8601String(),
     };
   }
 

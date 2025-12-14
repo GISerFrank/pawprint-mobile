@@ -14,6 +14,17 @@ class AppConfig {
   static const bool useLocalMode = true;
 
   // ============================================
+  // Gemini API 配置（本地模式直接调用）
+  // ============================================
+
+  // TODO: 替换为你的 Gemini API Key
+  // 获取地址: https://aistudio.google.com/app/apikey
+  static const String geminiApiKey = String.fromEnvironment(
+    'AIzaSyC_smAhD8IJYT3A1741Tcktr3XR2fNPCpI',
+    defaultValue: 'AIzaSyC_smAhD8IJYT3A1741Tcktr3XR2fNPCpI', // 在这里填入你的 API Key 用于测试
+  );
+
+  // ============================================
   // Supabase 配置
   // ============================================
 

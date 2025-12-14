@@ -1,11 +1,11 @@
-import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../config/app_config.dart';
 import '../models/models.dart';
 import '../services/services.dart';
 import 'service_providers.dart';
 import 'pet_provider.dart';
+import 'auth_provider.dart';
 
 /// 卡包定义
 class CardPack {
@@ -67,8 +67,13 @@ final collectibleCardsProvider = FutureProvider<List<CollectibleCard>>((ref) asy
   final petId = ref.watch(selectedPetIdProvider);
   if (petId == null) return [];
 
-  final db = ref.watch(databaseServiceProvider);
-  return db.getCollectibleCards(petId);
+  if (AppConfig.useLocalMode) {
+    final localStorage = ref.watch(localStorageServiceProvider);
+    return localStorage.getCollectibleCards(petId);
+  } else {
+    final db = ref.watch(databaseServiceProvider);
+    return db.getCollectibleCards(petId);
+  }
 });
 
 /// 按主题分组的卡牌
@@ -120,13 +125,9 @@ class CardPackState {
 
 /// 卡牌系统 Notifier
 class CardSystemNotifier extends StateNotifier<CardPackState> {
-  final GeminiService _gemini;
-  final DatabaseService _db;
-  final StorageService _storage;
   final Ref _ref;
 
-  CardSystemNotifier(this._gemini, this._db, this._storage, this._ref)
-      : super(const CardPackState());
+  CardSystemNotifier(this._ref) : super(const CardPackState());
 
   /// 选择卡包
   void selectPack(CardPack pack) {
@@ -153,51 +154,100 @@ class CardSystemNotifier extends StateNotifier<CardPackState> {
     );
 
     try {
-      // 扣除金币
-      await _db.updateCoins(petId, currentCoins - pack.price);
-      _ref.invalidate(currentPetProvider);
+      CollectibleCard savedCard;
 
-      // 生成卡牌
-      final generatedCard = await _gemini.generateCollectibleCard(
-        imageBase64: avatarBase64,
-        theme: pack.theme,
-        species: species,
-      );
-
-      if (generatedCard == null) {
-        // 退还金币
-        await _db.updateCoins(petId, currentCoins);
+      if (AppConfig.useLocalMode) {
+        // 本地模式
+        final localStorage = _ref.read(localStorageServiceProvider);
+        
+        // 扣除金币
+        await localStorage.updatePetCoins(petId, currentCoins - pack.price);
         _ref.invalidate(currentPetProvider);
-        state = state.copyWith(
-          openingState: PackOpeningState.idle,
-          isLoading: false,
-          error: 'Failed to generate card. Coins refunded.',
+
+        // 生成卡牌
+        GeneratedCardData? generatedCard;
+        
+        if (AppConfig.geminiApiKey.isNotEmpty) {
+          // 有 API Key，使用真实 AI 生成
+          final gemini = _ref.read(geminiDirectServiceProvider);
+          generatedCard = await gemini.generateCollectibleCard(
+            imageBase64: avatarBase64,
+            theme: pack.theme,
+            species: species,
+          );
+        }
+
+        if (generatedCard != null) {
+          // AI 生成成功
+          savedCard = await localStorage.createCollectibleCard(CollectibleCard(
+            id: '',
+            petId: petId,
+            name: generatedCard.name,
+            imageUrl: generatedCard.imageBase64,
+            description: generatedCard.description,
+            rarity: generatedCard.rarity,
+            theme: pack.theme,
+            tags: generatedCard.tags,
+            obtainedAt: DateTime.now(),
+          ));
+        } else {
+          // 无 API Key 或生成失败，使用 Mock 卡牌
+          savedCard = await _createMockCard(localStorage, petId, pack, avatarBase64, species);
+        }
+
+        _ref.invalidate(collectibleCardsProvider);
+      } else {
+        // Supabase 模式
+        final gemini = _ref.read(geminiServiceProvider);
+        final db = _ref.read(databaseServiceProvider);
+        final storage = _ref.read(storageServiceProvider);
+
+        // 扣除金币
+        await db.updateCoins(petId, currentCoins - pack.price);
+        _ref.invalidate(currentPetProvider);
+
+        // 生成卡牌
+        final generatedCard = await gemini.generateCollectibleCard(
+          imageBase64: avatarBase64,
+          theme: pack.theme,
+          species: species,
         );
-        return;
+
+        if (generatedCard == null) {
+          // 退还金币
+          await db.updateCoins(petId, currentCoins);
+          _ref.invalidate(currentPetProvider);
+          state = state.copyWith(
+            openingState: PackOpeningState.idle,
+            isLoading: false,
+            error: 'Failed to generate card. Coins refunded.',
+          );
+          return;
+        }
+
+        // 上传卡牌图片
+        final cardId = DateTime.now().millisecondsSinceEpoch.toString();
+        final imageUrl = await storage.uploadCollectibleCardImage(
+          petId: petId,
+          cardId: cardId,
+          fileBytes: generatedCard.imageData,
+        );
+
+        // 保存到数据库
+        savedCard = await db.createCollectibleCard(CollectibleCard(
+          id: '',
+          petId: petId,
+          name: generatedCard.name,
+          imageUrl: imageUrl,
+          description: generatedCard.description,
+          rarity: generatedCard.rarity,
+          theme: pack.theme,
+          tags: generatedCard.tags,
+          obtainedAt: DateTime.now(),
+        ));
+
+        _ref.invalidate(collectibleCardsProvider);
       }
-
-      // 上传卡牌图片
-      final cardId = DateTime.now().millisecondsSinceEpoch.toString();
-      final imageUrl = await _storage.uploadCollectibleCardImage(
-        petId: petId,
-        cardId: cardId,
-        fileBytes: generatedCard.imageData,
-      );
-
-      // 保存到数据库
-      final savedCard = await _db.createCollectibleCard(CollectibleCard(
-        id: '',
-        petId: petId,
-        name: generatedCard.name,
-        imageUrl: imageUrl,
-        description: generatedCard.description,
-        rarity: generatedCard.rarity,
-        theme: pack.theme,
-        tags: generatedCard.tags,
-        obtainedAt: DateTime.now(),
-      ));
-
-      _ref.invalidate(collectibleCardsProvider);
 
       state = CardPackState(
         openingState: PackOpeningState.revealing,
@@ -208,7 +258,13 @@ class CardSystemNotifier extends StateNotifier<CardPackState> {
     } catch (e) {
       // 退还金币
       try {
-        await _db.updateCoins(petId, currentCoins);
+        if (AppConfig.useLocalMode) {
+          final localStorage = _ref.read(localStorageServiceProvider);
+          await localStorage.updatePetCoins(petId, currentCoins);
+        } else {
+          final db = _ref.read(databaseServiceProvider);
+          await db.updateCoins(petId, currentCoins);
+        }
         _ref.invalidate(currentPetProvider);
       } catch (_) {}
 
@@ -220,9 +276,58 @@ class CardSystemNotifier extends StateNotifier<CardPackState> {
     }
   }
 
+  /// 创建 Mock 卡牌（本地模式无 API Key 时使用）
+  Future<CollectibleCard> _createMockCard(
+    LocalStorageService localStorage,
+    String petId,
+    CardPack pack,
+    String avatarBase64,
+    String species,
+  ) async {
+    // 随机稀有度
+    final rarities = [Rarity.common, Rarity.common, Rarity.common, Rarity.rare, Rarity.rare, Rarity.epic, Rarity.legendary];
+    final rarity = rarities[DateTime.now().millisecond % rarities.length];
+
+    // 生成名字
+    final names = {
+      PackTheme.daily: ['Cozy Nap', 'Sunny Day', 'Snack Time', 'Morning Stretch'],
+      PackTheme.profile: ['Noble Guardian', 'Majestic One', 'The Champion', 'Royal Portrait'],
+      PackTheme.fun: ['Party Animal', 'Silly Moment', 'Playful Spirit', 'Goofy Time'],
+      PackTheme.sticker: ['Pop Star', 'Sticker Bomb', 'Neon Vibes', 'Retro Cool'],
+    };
+    final name = names[pack.theme]![DateTime.now().second % names[pack.theme]!.length];
+
+    // 生成描述
+    final descriptions = [
+      'A rare glimpse into $species life.',
+      'Captured in the perfect moment.',
+      'Pure joy in one image.',
+      'This one is special!',
+    ];
+    final description = descriptions[DateTime.now().millisecond % descriptions.length];
+
+    return await localStorage.createCollectibleCard(CollectibleCard(
+      id: '',
+      petId: petId,
+      name: name,
+      imageUrl: avatarBase64, // 使用原始头像作为卡牌图片
+      description: description,
+      rarity: rarity,
+      theme: pack.theme,
+      tags: [pack.theme.displayName.toLowerCase(), rarity.displayName.toLowerCase()],
+      obtainedAt: DateTime.now(),
+    ));
+  }
+
   /// 领取金币
   Future<void> claimCoins(String petId, int currentCoins) async {
-    await _db.updateCoins(petId, currentCoins + 100);
+    if (AppConfig.useLocalMode) {
+      final localStorage = _ref.read(localStorageServiceProvider);
+      await localStorage.updatePetCoins(petId, currentCoins + 100);
+    } else {
+      final db = _ref.read(databaseServiceProvider);
+      await db.updateCoins(petId, currentCoins + 100);
+    }
     _ref.invalidate(currentPetProvider);
   }
 
@@ -234,8 +339,5 @@ class CardSystemNotifier extends StateNotifier<CardPackState> {
 
 /// 卡牌系统 Provider
 final cardSystemNotifierProvider = StateNotifierProvider<CardSystemNotifier, CardPackState>((ref) {
-  final gemini = ref.watch(geminiServiceProvider);
-  final db = ref.watch(databaseServiceProvider);
-  final storage = ref.watch(storageServiceProvider);
-  return CardSystemNotifier(gemini, db, storage, ref);
+  return CardSystemNotifier(ref);
 });

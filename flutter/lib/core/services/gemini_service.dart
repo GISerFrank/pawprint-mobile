@@ -106,8 +106,6 @@ class GeminiService {
         },
       );
 
-      if (result == null) return null;
-
       // 结果是 data:image/png;base64,... 格式
       final base64String = result as String;
       final base64Data = base64String.split(',').last;
@@ -133,7 +131,7 @@ class GeminiService {
         },
       );
 
-      if (result == null || result['image'] == null) return null;
+      if (result['image'] == null) return null;
 
       final imageBase64String = result['image'] as String;
       final imageData = base64Decode(imageBase64String.split(',').last);

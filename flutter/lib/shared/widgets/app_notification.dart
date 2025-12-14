@@ -136,7 +136,7 @@ class _NotificationOverlayState extends State<_NotificationOverlay>
                   Expanded(
                     child: Text(
                       widget.message,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: AppColors.stone800,
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
@@ -145,8 +145,8 @@ class _NotificationOverlayState extends State<_NotificationOverlay>
                   ),
                   GestureDetector(
                     onTap: _dismiss,
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
                       child: Icon(
                         Icons.close,
                         size: 18,

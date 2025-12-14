@@ -97,10 +97,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: AppColors.sky500.withOpacity(0.3)),
                   ),
-                  child: Row(
+                  child: const Row(
                     children: [
                       Icon(Icons.info_outline, color: AppColors.sky500, size: 20),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Local Mode: No backend needed. Just click Sign In!',
@@ -121,7 +121,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
+                    gradient: const LinearGradient(
                       colors: [AppColors.primary400, AppColors.mint500],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,

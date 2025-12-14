@@ -210,7 +210,7 @@ class _ScheduleTab extends ConsumerWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _SectionTitle(title: 'Upcoming Appointments', icon: Icons.calendar_month),
+                    const _SectionTitle(title: 'Upcoming Appointments', icon: Icons.calendar_month),
                     const SizedBox(height: 12),
                     ...appointments.map((a) => AppointmentCard(appointment: a)),
                     const SizedBox(height: 24),
@@ -218,7 +218,7 @@ class _ScheduleTab extends ConsumerWidget {
                 );
               },
             ),
-            _SectionTitle(title: 'To-Do List', icon: Icons.checklist),
+            const _SectionTitle(title: 'To-Do List', icon: Icons.checklist),
             const SizedBox(height: 12),
             remindersAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -263,7 +263,7 @@ class _RecordsTab extends ConsumerWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _SectionTitle(title: 'Weight Trend', icon: Icons.show_chart),
+                    const _SectionTitle(title: 'Weight Trend', icon: Icons.show_chart),
                     const SizedBox(height: 12),
                     WeightChart(records: records),
                     const SizedBox(height: 24),
@@ -271,7 +271,7 @@ class _RecordsTab extends ConsumerWidget {
                 );
               },
             ),
-            _SectionTitle(title: 'Health History', icon: Icons.history),
+            const _SectionTitle(title: 'Health History', icon: Icons.history),
             const SizedBox(height: 12),
             recordsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -300,7 +300,7 @@ class _SectionTitle extends StatelessWidget {
       children: [
         Icon(icon, size: 20, color: AppColors.stone500),
         const SizedBox(width: 8),
-        Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.stone700)),
+        Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.stone700)),
       ],
     );
   }
@@ -324,11 +324,11 @@ class EmptyStateCard extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: AppColors.stone50, shape: BoxShape.circle),
+            decoration: const BoxDecoration(color: AppColors.stone50, shape: BoxShape.circle),
             child: Icon(icon, size: 32, color: AppColors.stone400),
           ),
           const SizedBox(height: 16),
-          Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.stone700)),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.stone700)),
         ],
       ),
     );
@@ -345,7 +345,7 @@ class AppointmentCard extends ConsumerWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [AppColors.primary500, AppColors.primary600]),
+        gradient: const LinearGradient(colors: [AppColors.primary500, AppColors.primary600]),
         borderRadius: BorderRadius.circular(20),
         boxShadow: AppShadows.primary(AppColors.primary500),
       ),
@@ -361,9 +361,9 @@ class AppointmentCard extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(appointment.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(appointment.title, style: const TextStyle(color: Color.fromARGB(255, 255, 146, 37), fontWeight: FontWeight.bold, fontSize: 16)),
                 const SizedBox(height: 4),
-                Text(_formatDT(appointment.scheduledAt), style: TextStyle(color: Colors.white70, fontSize: 13)),
+                Text(_formatDT(appointment.scheduledAt), style: const TextStyle(color: Color.fromARGB(255, 255, 146, 37), fontSize: 13)),
               ],
             ),
           ),
@@ -434,7 +434,7 @@ class ReminderItem extends ConsumerWidget {
             ),
           ),
           IconButton(
-            icon: Icon(Icons.delete_outline, color: AppColors.stone400, size: 20),
+            icon: const Icon(Icons.delete_outline, color: AppColors.stone400, size: 20),
             onPressed: () {
               ref.read(remindersNotifierProvider.notifier).deleteReminder(reminder.id);
               showAppNotification(context, message: 'Deleted', type: NotificationType.info);
@@ -490,9 +490,9 @@ class RecordItem extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(record.recordType.displayName, style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.stone800)),
+                Text(record.recordType.displayName, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.stone800)),
                 if (record.note != null && record.note!.isNotEmpty)
-                  Text(record.note!, style: TextStyle(fontSize: 13, color: AppColors.stone500), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(record.note!, style: const TextStyle(fontSize: 13, color: AppColors.stone500), maxLines: 1, overflow: TextOverflow.ellipsis),
               ],
             ),
           ),
@@ -504,7 +504,7 @@ class RecordItem extends StatelessWidget {
                   record.recordType == HealthRecordType.weight ? '${record.value} kg' : record.value!,
                   style: TextStyle(fontWeight: FontWeight.bold, color: _color, fontSize: 16),
                 ),
-              Text('${record.recordDate.month}/${record.recordDate.day}', style: TextStyle(fontSize: 12, color: AppColors.stone400)),
+              Text('${record.recordDate.month}/${record.recordDate.day}', style: const TextStyle(fontSize: 12, color: AppColors.stone400)),
             ],
           ),
         ],
@@ -534,13 +534,13 @@ class WeightChart extends StatelessWidget {
       child: LineChart(
         LineChartData(
           minY: minY, maxY: maxY,
-          gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (_) => FlLine(color: AppColors.stone100, strokeWidth: 1)),
+          gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (_) => const FlLine(color: AppColors.stone100, strokeWidth: 1)),
           titlesData: FlTitlesData(
-            leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40, getTitlesWidget: (v, _) => Text('${v.toStringAsFixed(1)}', style: TextStyle(fontSize: 10, color: AppColors.stone400)))),
+            leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40, getTitlesWidget: (v, _) => Text(v.toStringAsFixed(1), style: const TextStyle(fontSize: 10, color: AppColors.stone400)))),
             bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (v, _) {
               if (v.toInt() >= records.length) return const SizedBox();
               final d = records[v.toInt()].recordDate;
-              return Padding(padding: const EdgeInsets.only(top: 8), child: Text('${d.month}/${d.day}', style: TextStyle(fontSize: 10, color: AppColors.stone400)));
+              return Padding(padding: const EdgeInsets.only(top: 8), child: Text('${d.month}/${d.day}', style: const TextStyle(fontSize: 10, color: AppColors.stone400)));
             })),
             topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -610,13 +610,13 @@ class _AddReminderSheetState extends ConsumerState<AddReminderSheet> {
             const SizedBox(height: 20),
             TextField(controller: _titleCtrl, decoration: const InputDecoration(labelText: 'Title', hintText: 'e.g., Heartworm pill')),
             const SizedBox(height: 16),
-            Text('Type', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.stone600)),
+            const Text('Type', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.stone600)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, children: ReminderType.values.map((t) => ChoiceChip(label: Text(t.displayName), selected: _type == t, selectedColor: AppColors.primary100, onSelected: (_) => setState(() => _type = t))).toList()),
             const SizedBox(height: 16),
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.calendar_today, color: AppColors.primary500),
+              leading: const Icon(Icons.calendar_today, color: AppColors.primary500),
               title: Text('${_date.month}/${_date.day} at ${_date.hour}:${_date.minute.toString().padLeft(2, '0')}'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () async {
@@ -687,7 +687,7 @@ class _AddRecordSheetState extends ConsumerState<AddRecordSheet> {
             const SizedBox(height: 20),
             Text('Add Health Record', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 20),
-            Text('Type', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.stone600)),
+            const Text('Type', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.stone600)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 8, children: HealthRecordType.values.map((t) => ChoiceChip(label: Text(t.displayName), selected: _type == t, selectedColor: AppColors.primary100, onSelected: (_) => setState(() => _type = t))).toList()),
             const SizedBox(height: 16),
@@ -700,7 +700,7 @@ class _AddRecordSheetState extends ConsumerState<AddRecordSheet> {
             const SizedBox(height: 16),
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.calendar_today, color: AppColors.primary500),
+              leading: const Icon(Icons.calendar_today, color: AppColors.primary500),
               title: Text('${_date.month}/${_date.day}/${_date.year}'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () async {

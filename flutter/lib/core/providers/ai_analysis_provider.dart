@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_config.dart';
 import '../models/models.dart';
-import '../services/services.dart';
 import 'service_providers.dart';
 import 'pet_provider.dart';
 import 'auth_provider.dart';
@@ -60,6 +59,7 @@ class AIAnalysisNotifier extends StateNotifier<AIAnalysisState> {
     required String symptoms,
     required BodyPart bodyPart,
     Uint8List? currentImageBytes,
+    String? baselineImageBase64,
     bool useBaseline = false,
   }) async {
     state = const AIAnalysisState(isLoading: true);
@@ -68,11 +68,29 @@ class AIAnalysisNotifier extends StateNotifier<AIAnalysisState> {
       String result;
       String? imageUrl;
 
-      if (AppConfig.useLocalMode) {
-        // 本地模式：返回模拟结果
-        await Future.delayed(const Duration(seconds: 2));
-        result = _getMockAnalysisResult(symptoms, bodyPart);
+      // 转换当前图片为 base64
+      String? currentImageBase64;
+      if (currentImageBytes != null) {
+        currentImageBase64 = 'data:image/jpeg;base64,${base64Encode(currentImageBytes)}';
+      }
 
+      if (AppConfig.useLocalMode) {
+        // 本地模式：检查是否有 API Key，有则调用真实 API
+        if (AppConfig.geminiApiKey.isNotEmpty) {
+          // 使用 Gemini Direct Service
+          final gemini = _ref.read(geminiDirectServiceProvider);
+          result = await gemini.analyzePetHealth(
+            symptoms: symptoms,
+            bodyPart: bodyPart,
+            currentImageBase64: currentImageBase64,
+            baselineImageBase64: useBaseline ? baselineImageBase64 : null,
+          );
+        } else {
+          // 无 API Key，使用模拟结果
+          await Future.delayed(const Duration(seconds: 2));
+          result = _getMockAnalysisResult(symptoms, bodyPart);
+        }
+        
         // 保存图片到本地
         if (currentImageBytes != null) {
           final localStorage = _ref.read(localStorageServiceProvider);
@@ -92,22 +110,16 @@ class AIAnalysisNotifier extends StateNotifier<AIAnalysisState> {
           createdAt: DateTime.now(),
         ));
       } else {
-        // 真实模式：调用 Gemini API
+        // Supabase 模式：调用 Edge Function
         final gemini = _ref.read(geminiServiceProvider);
         final storage = _ref.read(storageServiceProvider);
         final db = _ref.read(databaseServiceProvider);
-
-        // 转换当前图片为 base64
-        String? currentImageBase64;
-        if (currentImageBytes != null) {
-          currentImageBase64 = 'data:image/jpeg;base64,${base64Encode(currentImageBytes)}';
-        }
 
         result = await gemini.analyzePetHealth(
           symptoms: symptoms,
           bodyPart: bodyPart,
           currentImageBase64: currentImageBase64,
-          baselineImageBase64: null,
+          baselineImageBase64: useBaseline ? baselineImageBase64 : null,
         );
 
         // 保存分析图片

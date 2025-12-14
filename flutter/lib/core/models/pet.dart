@@ -46,10 +46,10 @@ class Pet extends Equatable {
   /// 从 JSON 创建
   factory Pet.fromJson(Map<String, dynamic> json) {
     return Pet(
-      id: json['id'] as String,
-      userId: json['user_id'] as String,
-      name: json['name'] as String,
-      species: PetSpecies.fromString(json['species'] as String),
+      id: json['id'] as String? ?? '',
+      userId: json['user_id'] as String? ?? '',
+      name: json['name'] as String? ?? 'Unknown',
+      species: PetSpecies.fromString(json['species'] as String? ?? 'Other'),
       breed: json['breed'] as String? ?? 'Unknown',
       ageMonths: json['age_months'] as int? ?? 0,
       gender: PetGender.fromString(json['gender'] as String? ?? 'Male'),
@@ -58,8 +58,20 @@ class Pet extends Equatable {
       allergies: json['allergies'] as String?,
       avatarUrl: json['avatar_url'] as String?,
       coins: json['coins'] as int? ?? 200,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      createdAt: json['created_at'] != null 
+          ? DateTime.parse(json['created_at'] as String) 
+          : DateTime.now(),
+      updatedAt: json['updated_at'] != null 
+          ? DateTime.parse(json['updated_at'] as String) 
+          : DateTime.now(),
+      idCard: json['id_card'] != null 
+          ? PetIDCard.fromJson(json['id_card'] as Map<String, dynamic>)
+          : null,
+      collection: json['collection'] != null
+          ? (json['collection'] as List<dynamic>)
+              .map((e) => CollectibleCard.fromJson(e as Map<String, dynamic>))
+              .toList()
+          : null,
     );
   }
 
@@ -80,6 +92,8 @@ class Pet extends Equatable {
       'coins': coins,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
+      'id_card': idCard?.toJson(),
+      'collection': collection?.map((c) => c.toJson()).toList(),
     };
   }
 
@@ -157,21 +171,21 @@ class Pet extends Equatable {
 
   @override
   List<Object?> get props => [
-    id,
-    userId,
-    name,
-    species,
-    breed,
-    ageMonths,
-    gender,
-    weightKg,
-    isNeutered,
-    allergies,
-    avatarUrl,
-    coins,
-    createdAt,
-    updatedAt,
-  ];
+        id,
+        userId,
+        name,
+        species,
+        breed,
+        ageMonths,
+        gender,
+        weightKg,
+        isNeutered,
+        allergies,
+        avatarUrl,
+        coins,
+        createdAt,
+        updatedAt,
+      ];
 }
 
 /// 宠物 ID 卡片模型
@@ -196,13 +210,15 @@ class PetIDCard extends Equatable {
 
   factory PetIDCard.fromJson(Map<String, dynamic> json) {
     return PetIDCard(
-      id: json['id'] as String,
-      petId: json['pet_id'] as String,
-      style: IDCardStyle.fromString(json['style'] as String),
-      cartoonImageUrl: json['cartoon_image_url'] as String,
+      id: json['id'] as String? ?? '',
+      petId: json['pet_id'] as String? ?? '',
+      style: IDCardStyle.fromString(json['style'] as String? ?? 'Cute'),
+      cartoonImageUrl: json['cartoon_image_url'] as String? ?? '',
       tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? [],
       description: json['description'] as String?,
-      generatedAt: DateTime.parse(json['generated_at'] as String),
+      generatedAt: json['generated_at'] != null 
+          ? DateTime.parse(json['generated_at'] as String) 
+          : DateTime.now(),
     );
   }
 
@@ -248,15 +264,17 @@ class CollectibleCard extends Equatable {
 
   factory CollectibleCard.fromJson(Map<String, dynamic> json) {
     return CollectibleCard(
-      id: json['id'] as String,
-      petId: json['pet_id'] as String,
-      name: json['name'] as String,
-      imageUrl: json['image_url'] as String,
+      id: json['id'] as String? ?? '',
+      petId: json['pet_id'] as String? ?? '',
+      name: json['name'] as String? ?? 'Unknown Card',
+      imageUrl: json['image_url'] as String? ?? '',
       description: json['description'] as String?,
-      rarity: Rarity.fromString(json['rarity'] as String),
-      theme: PackTheme.fromString(json['theme'] as String),
+      rarity: Rarity.fromString(json['rarity'] as String? ?? 'Common'),
+      theme: PackTheme.fromString(json['theme'] as String? ?? 'Daily'),
       tags: (json['tags'] as List<dynamic>?)?.cast<String>() ?? [],
-      obtainedAt: DateTime.parse(json['obtained_at'] as String),
+      obtainedAt: json['obtained_at'] != null 
+          ? DateTime.parse(json['obtained_at'] as String) 
+          : DateTime.now(),
     );
   }
 
@@ -296,11 +314,13 @@ class PetBodyImage extends Equatable {
 
   factory PetBodyImage.fromJson(Map<String, dynamic> json) {
     return PetBodyImage(
-      id: json['id'] as String,
-      petId: json['pet_id'] as String,
-      bodyPart: BodyPart.fromString(json['body_part'] as String),
-      imageUrl: json['image_url'] as String,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      id: json['id'] as String? ?? '',
+      petId: json['pet_id'] as String? ?? '',
+      bodyPart: BodyPart.fromString(json['body_part'] as String? ?? 'Other'),
+      imageUrl: json['image_url'] as String? ?? '',
+      createdAt: json['created_at'] != null 
+          ? DateTime.parse(json['created_at'] as String) 
+          : DateTime.now(),
     );
   }
 

@@ -21,7 +21,7 @@ class AppLoadingIndicator extends StatelessWidget {
           SizedBox(
             width: size,
             height: size,
-            child: CircularProgressIndicator(
+            child: const CircularProgressIndicator(
               strokeWidth: 3,
               valueColor: AlwaysStoppedAnimation(AppColors.primary500),
             ),
@@ -30,7 +30,7 @@ class AppLoadingIndicator extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               message!,
-              style: TextStyle(
+              style: const TextStyle(
                 color: AppColors.stone500,
                 fontWeight: FontWeight.w500,
               ),
@@ -164,7 +164,7 @@ class ErrorStateWidget extends StatelessWidget {
                 color: AppColors.error.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.error_outline,
                 size: 40,
                 color: AppColors.error,

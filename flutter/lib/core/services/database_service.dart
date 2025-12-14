@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/models.dart';
@@ -34,8 +33,6 @@ class DatabaseService {
         .select()
         .eq('id', petId)
         .single();
-
-    if (response == null) return null;
 
     final pet = Pet.fromJson(response);
 

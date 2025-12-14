@@ -53,11 +53,11 @@ class _NoPetView extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: AppColors.primary100,
                 shape: BoxShape.circle,
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.pets,
                 size: 64,
                 color: AppColors.primary500,
@@ -72,8 +72,8 @@ class _NoPetView extends StatelessWidget {
             Text(
               'Add your furry friend to get started',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.stone500,
-              ),
+                    color: AppColors.stone500,
+                  ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
@@ -167,15 +167,15 @@ class _Header extends StatelessWidget {
             Text(
               '${_getGreeting()} 👋',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: AppColors.stone500,
-              ),
+                    color: AppColors.stone500,
+                  ),
             ),
             const SizedBox(height: 4),
             Text(
               '$petName\'s Home',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
           ],
         ),
@@ -187,11 +187,11 @@ class _Header extends StatelessWidget {
               color: AppColors.sky100,
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Row(
+            child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.offline_bolt, size: 16, color: AppColors.sky500),
-                const SizedBox(width: 4),
+                SizedBox(width: 4),
                 Text(
                   'Local',
                   style: TextStyle(
@@ -219,7 +219,7 @@ class _PetCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           colors: [AppColors.primary400, AppColors.primary600],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -243,10 +243,10 @@ class _PetCard extends StatelessWidget {
               child: pet.avatarUrl != null && pet.avatarUrl!.isNotEmpty
                   ? _buildAvatar(pet.avatarUrl!)
                   : Icon(
-                Icons.pets,
-                size: 40,
-                color: Colors.white.withOpacity(0.8),
-              ),
+                      Icons.pets,
+                      size: 40,
+                      color: Colors.white.withOpacity(0.8),
+                    ),
             ),
           ),
           const SizedBox(width: 16),
@@ -259,21 +259,22 @@ class _PetCard extends StatelessWidget {
                 Text(
                   pet.name,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   '${pet.species.displayName} • ${pet.breed}',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.white70,
-                  ),
+                        color: Colors.white70,
+                      ),
                 ),
                 const SizedBox(height: 12),
                 // Coins badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(20),
@@ -281,7 +282,8 @@ class _PetCard extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.monetization_on, size: 18, color: Colors.amber[300]),
+                      Icon(Icons.monetization_on,
+                          size: 18, color: Colors.amber[300]),
                       const SizedBox(width: 6),
                       Text(
                         '${pet.coins} Coins',
@@ -448,7 +450,7 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             value,
-            style: TextStyle(
+            style: const TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 16,
               color: AppColors.stone800,
@@ -457,7 +459,7 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 12,
               color: AppColors.stone500,
             ),
@@ -501,7 +503,8 @@ class _UpcomingReminders extends StatelessWidget {
           error: (_, __) => _EmptyReminders(),
           data: (reminders) {
             final upcoming = reminders
-                .where((r) => !r.isCompleted && r.scheduledAt.isAfter(DateTime.now()))
+                .where((r) =>
+                    !r.isCompleted && r.scheduledAt.isAfter(DateTime.now()))
                 .take(3)
                 .toList();
 
@@ -510,7 +513,8 @@ class _UpcomingReminders extends StatelessWidget {
             }
 
             return Column(
-              children: upcoming.map((r) => _ReminderTile(reminder: r)).toList(),
+              children:
+                  upcoming.map((r) => _ReminderTile(reminder: r)).toList(),
             );
           },
         ),
@@ -537,10 +541,10 @@ class _EmptyReminders extends StatelessWidget {
               color: AppColors.stone50,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(Icons.event_available, color: AppColors.stone400),
+            child: const Icon(Icons.event_available, color: AppColors.stone400),
           ),
           const SizedBox(width: 16),
-          Expanded(
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -611,7 +615,9 @@ class _ReminderTile extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: AppShadows.soft,
-        border: isToday ? Border.all(color: color.withOpacity(0.3), width: 2) : null,
+        border: isToday
+            ? Border.all(color: color.withOpacity(0.3), width: 2)
+            : null,
       ),
       child: Row(
         children: [
@@ -630,7 +636,7 @@ class _ReminderTile extends StatelessWidget {
               children: [
                 Text(
                   reminder.title,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     color: AppColors.stone800,
                   ),
@@ -638,7 +644,7 @@ class _ReminderTile extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   _formatDate(reminder.scheduledAt),
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 13,
                     color: AppColors.stone500,
                   ),
@@ -669,7 +675,7 @@ class _ReminderTile extends StatelessWidget {
                 color: AppColors.stone100,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Text(
+              child: const Text(
                 'Tomorrow',
                 style: TextStyle(
                   color: AppColors.stone600,
@@ -685,12 +691,16 @@ class _ReminderTile extends StatelessWidget {
 
   bool _isToday(DateTime date) {
     final now = DateTime.now();
-    return date.year == now.year && date.month == now.month && date.day == now.day;
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
   }
 
   bool _isTomorrow(DateTime date) {
     final tomorrow = DateTime.now().add(const Duration(days: 1));
-    return date.year == tomorrow.year && date.month == tomorrow.month && date.day == tomorrow.day;
+    return date.year == tomorrow.year &&
+        date.month == tomorrow.month &&
+        date.day == tomorrow.day;
   }
 
   String _formatDate(DateTime date) {
@@ -704,7 +714,8 @@ class _ReminderTile extends StatelessWidget {
   }
 
   String _formatTime(DateTime date) {
-    final hour = date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
+    final hour =
+        date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
     final period = date.hour >= 12 ? 'PM' : 'AM';
     return '$hour:${date.minute.toString().padLeft(2, '0')} $period';
   }
@@ -750,7 +761,7 @@ class _QuickActions extends StatelessWidget {
                 label: 'Cards',
                 color: AppColors.peach100,
                 iconColor: AppColors.peach500,
-                onTap: () => context.go(AppRoutes.cardShop),
+                onTap: () => context.push(AppRoutes.cardShop),
               ),
             ),
           ],
@@ -818,21 +829,57 @@ class _HealthTips extends StatelessWidget {
     switch (species) {
       case PetSpecies.dog:
         return [
-          {'title': 'Daily Exercise', 'desc': 'Dogs need 30-60 min of activity daily', 'icon': '🏃'},
-          {'title': 'Dental Care', 'desc': 'Brush teeth 2-3 times per week', 'icon': '🦷'},
-          {'title': 'Social Time', 'desc': 'Regular interaction prevents anxiety', 'icon': '🐕'},
+          {
+            'title': 'Daily Exercise',
+            'desc': 'Dogs need 30-60 min of activity daily',
+            'icon': '🏃'
+          },
+          {
+            'title': 'Dental Care',
+            'desc': 'Brush teeth 2-3 times per week',
+            'icon': '🦷'
+          },
+          {
+            'title': 'Social Time',
+            'desc': 'Regular interaction prevents anxiety',
+            'icon': '🐕'
+          },
         ];
       case PetSpecies.cat:
         return [
-          {'title': 'Hydration', 'desc': 'Cats often need encouragement to drink', 'icon': '💧'},
-          {'title': 'Scratching Post', 'desc': 'Essential for claw health', 'icon': '🐱'},
-          {'title': 'Quiet Time', 'desc': 'Cats need 12-16 hours of sleep', 'icon': '😴'},
+          {
+            'title': 'Hydration',
+            'desc': 'Cats often need encouragement to drink',
+            'icon': '💧'
+          },
+          {
+            'title': 'Scratching Post',
+            'desc': 'Essential for claw health',
+            'icon': '🐱'
+          },
+          {
+            'title': 'Quiet Time',
+            'desc': 'Cats need 12-16 hours of sleep',
+            'icon': '😴'
+          },
         ];
       default:
         return [
-          {'title': 'Regular Checkups', 'desc': 'Visit the vet annually', 'icon': '🩺'},
-          {'title': 'Balanced Diet', 'desc': 'Species-appropriate nutrition', 'icon': '🥗'},
-          {'title': 'Clean Environment', 'desc': 'Regular habitat maintenance', 'icon': '🧹'},
+          {
+            'title': 'Regular Checkups',
+            'desc': 'Visit the vet annually',
+            'icon': '🩺'
+          },
+          {
+            'title': 'Balanced Diet',
+            'desc': 'Species-appropriate nutrition',
+            'icon': '🥗'
+          },
+          {
+            'title': 'Clean Environment',
+            'desc': 'Regular habitat maintenance',
+            'icon': '🧹'
+          },
         ];
     }
   }
@@ -866,8 +913,8 @@ class _HealthTips extends StatelessWidget {
                       index == 0
                           ? AppColors.primary50
                           : index == 1
-                          ? AppColors.peach100.withOpacity(0.5)
-                          : AppColors.mint100.withOpacity(0.5),
+                              ? AppColors.peach100.withOpacity(0.5)
+                              : AppColors.mint100.withOpacity(0.5),
                       Colors.white,
                     ],
                     begin: Alignment.topLeft,
@@ -886,7 +933,7 @@ class _HealthTips extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       tip['title']!,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         color: AppColors.stone800,
                       ),
@@ -894,7 +941,7 @@ class _HealthTips extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       tip['desc']!,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 12,
                         color: AppColors.stone500,
                       ),

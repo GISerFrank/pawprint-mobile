@@ -14,6 +14,7 @@ class LocalStorageService {
   static const String _keyReminders = 'local_reminders';
   static const String _keyAIAnalysisSessions = 'local_ai_sessions';
   static const String _keyForumPosts = 'local_forum_posts';
+  static const String _keyForumComments = 'local_forum_comments';
   static const String _keyCollectibleCards = 'local_collectible_cards';
 
   late SharedPreferences _prefs;
@@ -89,11 +90,17 @@ class LocalStorageService {
     final json = _prefs.getString(_keyPets);
     if (json == null) return [];
 
-    final List<dynamic> list = jsonDecode(json);
-    return list
-        .map((e) => Pet.fromJson(e))
-        .where((p) => p.userId == user.id)
-        .toList();
+    try {
+      final List<dynamic> list = jsonDecode(json);
+      return list
+          .map((e) => Pet.fromJson(e as Map<String, dynamic>))
+          .where((p) => p.userId == user.id)
+          .toList();
+    } catch (e) {
+      print('Error parsing pets: $e');
+      await _prefs.remove(_keyPets);
+      return [];
+    }
   }
 
   Future<Pet?> getPetById(String petId) async {
@@ -130,6 +137,33 @@ class LocalStorageService {
     if (index == -1) throw Exception('Pet not found');
 
     final oldPet = pets[index];
+
+    // 处理 id_card
+    PetIDCard? idCard = oldPet.idCard;
+    if (updates.containsKey('id_card')) {
+      final idCardData = updates['id_card'];
+      if (idCardData == null) {
+        idCard = null;
+      } else if (idCardData is Map<String, dynamic>) {
+        idCard = PetIDCard.fromJson(idCardData);
+      }
+    }
+
+    // 处理 collection
+    List<CollectibleCard>? collection = oldPet.collection;
+    if (updates.containsKey('collection')) {
+      final collectionData = updates['collection'];
+      if (collectionData == null) {
+        collection = null;
+      } else if (collectionData is List) {
+        collection = collectionData
+            .map((e) => e is CollectibleCard
+                ? e
+                : CollectibleCard.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    }
+
     final updatedPet = Pet(
       id: oldPet.id,
       userId: oldPet.userId,
@@ -149,6 +183,8 @@ class LocalStorageService {
       coins: updates['coins'] ?? oldPet.coins,
       createdAt: oldPet.createdAt,
       updatedAt: DateTime.now(),
+      idCard: idCard,
+      collection: collection,
     );
 
     pets[index] = updatedPet;
@@ -164,6 +200,23 @@ class LocalStorageService {
 
   Future<void> updateCoins(String petId, int coins) async {
     await updatePet(petId, {'coins': coins});
+  }
+
+  /// 更新宠物金币（updateCoins 的别名）
+  Future<void> updatePetCoins(String petId, int coins) async {
+    await updateCoins(petId, coins);
+  }
+
+  Future<void> updatePetCollection(
+      String petId, List<CollectibleCard> collection) async {
+    final pets = await _getAllPets();
+    final index = pets.indexWhere((p) => p.id == petId);
+    if (index == -1) throw Exception('Pet not found');
+
+    final oldPet = pets[index];
+    final updatedPet = oldPet.copyWith(collection: collection);
+    pets[index] = updatedPet;
+    await _savePets(pets);
   }
 
   Future<List<Pet>> _getAllPets() async {
@@ -190,12 +243,18 @@ class LocalStorageService {
     final json = _prefs.getString(_keyHealthRecords);
     if (json == null) return [];
 
-    final List<dynamic> list = jsonDecode(json);
-    return list
-        .map((e) => HealthRecord.fromJson(e))
-        .where((r) => r.petId == petId)
-        .toList()
-      ..sort((a, b) => b.recordDate.compareTo(a.recordDate));
+    try {
+      final List<dynamic> list = jsonDecode(json);
+      return list
+          .map((e) => HealthRecord.fromJson(e as Map<String, dynamic>))
+          .where((r) => r.petId == petId)
+          .toList()
+        ..sort((a, b) => b.recordDate.compareTo(a.recordDate));
+    } catch (e) {
+      print('Error parsing health records: $e');
+      await _prefs.remove(_keyHealthRecords);
+      return [];
+    }
   }
 
   Future<List<HealthRecord>> getWeightRecords(String petId) async {
@@ -245,12 +304,19 @@ class LocalStorageService {
     final json = _prefs.getString(_keyReminders);
     if (json == null) return [];
 
-    final List<dynamic> list = jsonDecode(json);
-    return list
-        .map((e) => Reminder.fromJson(e))
-        .where((r) => r.petId == petId)
-        .toList()
-      ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+    try {
+      final List<dynamic> list = jsonDecode(json);
+      return list
+          .map((e) => Reminder.fromJson(e as Map<String, dynamic>))
+          .where((r) => r.petId == petId)
+          .toList()
+        ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+    } catch (e) {
+      // 如果解析失败，清除损坏的数据并返回空列表
+      print('Error parsing reminders: $e');
+      await _prefs.remove(_keyReminders);
+      return [];
+    }
   }
 
   Future<Reminder> createReminder(Reminder reminder) async {
@@ -273,7 +339,8 @@ class LocalStorageService {
     return newReminder;
   }
 
-  Future<void> toggleReminderComplete(String reminderId, bool isCompleted) async {
+  Future<void> toggleReminderComplete(
+      String reminderId, bool isCompleted) async {
     await init();
     final json = _prefs.getString(_keyReminders);
     if (json == null) return;
@@ -305,15 +372,22 @@ class LocalStorageService {
     final json = _prefs.getString(_keyAIAnalysisSessions);
     if (json == null) return [];
 
-    final List<dynamic> list = jsonDecode(json);
-    return list
-        .map((e) => AIAnalysisSession.fromJson(e))
-        .where((s) => s.petId == petId)
-        .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    try {
+      final List<dynamic> list = jsonDecode(json);
+      return list
+          .map((e) => AIAnalysisSession.fromJson(e as Map<String, dynamic>))
+          .where((s) => s.petId == petId)
+          .toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    } catch (e) {
+      print('Error parsing AI sessions: $e');
+      await _prefs.remove(_keyAIAnalysisSessions);
+      return [];
+    }
   }
 
-  Future<AIAnalysisSession> createAIAnalysisSession(AIAnalysisSession session) async {
+  Future<AIAnalysisSession> createAIAnalysisSession(
+      AIAnalysisSession session) async {
     await init();
     final newSession = AIAnalysisSession(
       id: _generateId(),
@@ -346,14 +420,22 @@ class LocalStorageService {
       return _getSeedForumPosts();
     }
 
-    final List<dynamic> list = jsonDecode(json);
-    var posts = list.map((e) => ForumPost.fromJson(e)).toList();
+    try {
+      final List<dynamic> list = jsonDecode(json);
+      var posts = list
+          .map((e) => ForumPost.fromJson(e as Map<String, dynamic>))
+          .toList();
 
-    if (category != null) {
-      posts = posts.where((p) => p.category == category).toList();
+      if (category != null) {
+        posts = posts.where((p) => p.category == category).toList();
+      }
+
+      return posts..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    } catch (e) {
+      print('Error parsing forum posts: $e');
+      await _prefs.remove(_keyForumPosts);
+      return _getSeedForumPosts();
     }
-
-    return posts..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
   Future<ForumPost> createForumPost(ForumPost post) async {
@@ -393,6 +475,82 @@ class LocalStorageService {
     if (index != -1) {
       list[index]['likes_count'] = (list[index]['likes_count'] ?? 0) + 1;
       await _prefs.setString(_keyForumPosts, jsonEncode(list));
+    }
+  }
+
+  Future<List<ForumComment>> getForumComments(String postId) async {
+    await init();
+    final json = _prefs.getString(_keyForumComments);
+
+    // 如果没有评论数据，返回种子评论
+    if (json == null) {
+      return _getSeedComments(postId);
+    }
+
+    final List<dynamic> list = jsonDecode(json);
+    final comments = list
+        .map((e) => ForumComment.fromJson(e))
+        .where((c) => c.postId == postId)
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    // 如果该帖子没有评论，检查是否是种子帖子
+    if (comments.isEmpty && postId.startsWith('seed_')) {
+      return _getSeedComments(postId);
+    }
+
+    return comments;
+  }
+
+  Future<ForumComment> createForumComment(ForumComment comment) async {
+    await init();
+    final user = await getCurrentUser();
+
+    final newComment = ForumComment(
+      id: _generateId(),
+      postId: comment.postId,
+      userId: user?.id ?? 'anonymous',
+      authorName: comment.authorName,
+      content: comment.content,
+      createdAt: DateTime.now(),
+    );
+
+    // 保存评论
+    final json = _prefs.getString(_keyForumComments);
+    final List<dynamic> list = json != null ? jsonDecode(json) : [];
+    list.add(newComment.toJson());
+    await _prefs.setString(_keyForumComments, jsonEncode(list));
+
+    // 更新帖子的评论数
+    final postsJson = _prefs.getString(_keyForumPosts);
+    if (postsJson != null) {
+      final List<dynamic> posts = jsonDecode(postsJson);
+      final index = posts.indexWhere((e) => e['id'] == comment.postId);
+      if (index != -1) {
+        posts[index]['comments_count'] =
+            (posts[index]['comments_count'] ?? 0) + 1;
+        await _prefs.setString(_keyForumPosts, jsonEncode(posts));
+      }
+    }
+
+    return newComment;
+  }
+
+  Future<void> deleteForumPost(String postId) async {
+    await init();
+    final json = _prefs.getString(_keyForumPosts);
+    if (json == null) return;
+
+    final List<dynamic> list = jsonDecode(json);
+    list.removeWhere((e) => e['id'] == postId);
+    await _prefs.setString(_keyForumPosts, jsonEncode(list));
+
+    // 同时删除该帖子的所有评论
+    final commentsJson = _prefs.getString(_keyForumComments);
+    if (commentsJson != null) {
+      final List<dynamic> comments = jsonDecode(commentsJson);
+      comments.removeWhere((e) => e['post_id'] == postId);
+      await _prefs.setString(_keyForumComments, jsonEncode(comments));
     }
   }
 
@@ -476,7 +634,8 @@ class LocalStorageService {
         authorName: 'Sarah & Bella',
         authorAvatar: '🐕',
         title: 'Tips for thunderstorms?',
-        content: "My dog gets super anxious when it rains. Thundershirts haven't worked well. Any natural remedies?",
+        content:
+            "My dog gets super anxious when it rains. Thundershirts haven't worked well. Any natural remedies?",
         category: ForumCategory.question,
         likesCount: 12,
         commentsCount: 3,
@@ -488,7 +647,8 @@ class LocalStorageService {
         authorName: 'Mike & Whiskers',
         authorAvatar: '🐈',
         title: 'Found a great new grain-free food!',
-        content: "Just wanted to share that 'PurePaws' salmon recipe has been great for Whiskers' skin issues.",
+        content:
+            "Just wanted to share that 'PurePaws' salmon recipe has been great for Whiskers' skin issues.",
         category: ForumCategory.tip,
         likesCount: 24,
         commentsCount: 5,
@@ -500,13 +660,108 @@ class LocalStorageService {
         authorName: 'Vet Dr. Emily',
         authorAvatar: '👩‍⚕️',
         title: 'Reminder: Tick season is starting',
-        content: 'Please remember to check your pets after walks in tall grass! We have seen 3 cases this week already.',
+        content:
+            'Please remember to check your pets after walks in tall grass! We have seen 3 cases this week already.',
         category: ForumCategory.emergency,
         likesCount: 89,
         commentsCount: 12,
         createdAt: DateTime.now().subtract(const Duration(hours: 6)),
       ),
     ];
+  }
+
+  /// 获取种子评论
+  List<ForumComment> _getSeedComments(String postId) {
+    final seedComments = <String, List<ForumComment>>{
+      'seed_1': [
+        ForumComment(
+          id: 'comment_1_1',
+          postId: 'seed_1',
+          userId: 'system',
+          authorName: 'Mark',
+          content:
+              'Have you tried playing calming music? It works wonders for my golden retriever!',
+          createdAt: DateTime.now().subtract(const Duration(hours: 20)),
+        ),
+        ForumComment(
+          id: 'comment_1_2',
+          postId: 'seed_1',
+          userId: 'system',
+          authorName: 'Jenny',
+          content: 'CBD treats helped my anxious pup. Ask your vet about it.',
+          createdAt: DateTime.now().subtract(const Duration(hours: 18)),
+        ),
+        ForumComment(
+          id: 'comment_1_3',
+          postId: 'seed_1',
+          userId: 'system',
+          authorName: 'Tom',
+          content:
+              'Creating a safe den space with blankets really helps during storms.',
+          createdAt: DateTime.now().subtract(const Duration(hours: 12)),
+        ),
+      ],
+      'seed_2': [
+        ForumComment(
+          id: 'comment_2_1',
+          postId: 'seed_2',
+          userId: 'system',
+          authorName: 'Lisa',
+          content: 'Thanks for sharing! Where do you buy it?',
+          createdAt:
+              DateTime.now().subtract(const Duration(days: 1, hours: 20)),
+        ),
+        ForumComment(
+          id: 'comment_2_2',
+          postId: 'seed_2',
+          userId: 'system',
+          authorName: 'Mike & Whiskers',
+          content: 'I get it at PetSmart! They usually have good deals.',
+          createdAt:
+              DateTime.now().subtract(const Duration(days: 1, hours: 18)),
+        ),
+        ForumComment(
+          id: 'comment_2_3',
+          postId: 'seed_2',
+          userId: 'system',
+          authorName: 'Alex',
+          content: 'My cat loved it too! Great recommendation.',
+          createdAt:
+              DateTime.now().subtract(const Duration(days: 1, hours: 10)),
+        ),
+      ],
+      'seed_3': [
+        ForumComment(
+          id: 'comment_3_1',
+          postId: 'seed_3',
+          userId: 'system',
+          authorName: 'Pet Parent',
+          content:
+              'Thank you Dr. Emily! Found one on my dog yesterday after a hike.',
+          createdAt: DateTime.now().subtract(const Duration(hours: 5)),
+        ),
+        ForumComment(
+          id: 'comment_3_2',
+          postId: 'seed_3',
+          userId: 'system',
+          authorName: 'Sarah',
+          content:
+              'What preventative do you recommend? Currently using Frontline.',
+          createdAt: DateTime.now().subtract(const Duration(hours: 4)),
+        ),
+        ForumComment(
+          id: 'comment_3_3',
+          postId: 'seed_3',
+          userId: 'system',
+          authorName: 'Vet Dr. Emily',
+          content:
+              'Frontline is good! Bravecto and NexGard are also excellent options. Consult with your local vet for the best choice.',
+          createdAt: DateTime.now().subtract(const Duration(hours: 3)),
+        ),
+      ],
+    };
+
+    return seedComments[postId] ?? [];
   }
 }
 

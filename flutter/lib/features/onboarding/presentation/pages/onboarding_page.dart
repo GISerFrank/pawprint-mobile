@@ -380,7 +380,7 @@ class _BodyScanStep extends StatelessWidget {
           Text('Body Scan', style: Theme.of(context).textTheme.titleLarge),
           Text('Baseline photos for AI comparison', style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 16),
-          InfoCard(icon: Icons.favorite, iconColor: AppColors.peach500, backgroundColor: AppColors.peach100, message: 'Pro Tip: These photos help our AI spot changes later. Try to get clear shots in good lighting!'),
+          const InfoCard(icon: Icons.favorite, iconColor: AppColors.peach500, backgroundColor: AppColors.peach100, message: 'Pro Tip: These photos help our AI spot changes later. Try to get clear shots in good lighting!'),
           const SizedBox(height: 24),
           GridView.count(
             crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), mainAxisSpacing: 12, crossAxisSpacing: 12,

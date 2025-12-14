@@ -34,12 +34,14 @@ class AppColors {
 
   static const Color mint100 = Color(0xFFD1FAE5);
   static const Color mint500 = Color(0xFF10B981);
+  static const Color mint600 = Color.fromARGB(255, 8, 145, 99);
 
   static const Color peach50 = Color(0xFFFFF7ED);
   static const Color peach100 = Color(0xFFFFEDD5);
   static const Color peach200 = Color(0xFFFED7AA);
   static const Color peach400 = Color(0xFFFB923C);
   static const Color peach500 = Color(0xFFF97316);
+  static const Color peach600 = Color.fromARGB(255, 220, 93, 2);
   static const Color peach800 = Color(0xFF9A3412);
 
   static const Color sky50 = Color(0xFFF0F9FF);

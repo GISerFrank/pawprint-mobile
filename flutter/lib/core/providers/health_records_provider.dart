@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_config.dart';
 import '../models/models.dart';
-import '../services/services.dart';
 import 'service_providers.dart';
 import 'pet_provider.dart';
 import 'auth_provider.dart';
