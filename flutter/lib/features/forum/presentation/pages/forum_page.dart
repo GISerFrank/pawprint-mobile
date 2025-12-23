@@ -27,11 +27,12 @@ class _ForumPageState extends ConsumerState<ForumPage> {
   }
 
   void _showCreatePostSheet() {
-    showModalBottomSheet(
+    showDraggableBottomSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _CreatePostSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      child: _CreatePostSheetContent(
         onPost: (title, content, category) async {
           final user = ref.read(currentUserProvider);
           if (user == null) return;
@@ -425,8 +426,9 @@ class _PostCard extends ConsumerWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: TextField(
+                        child: AppTextField(
                           controller: commentController,
+                          hintText: 'Add a comment...',
                           decoration: InputDecoration(
                             hintText: 'Add a comment...',
                             filled: true,
@@ -584,16 +586,17 @@ class _CommentItem extends StatelessWidget {
   }
 }
 
-class _CreatePostSheet extends StatefulWidget {
+
+class _CreatePostSheetContent extends StatefulWidget {
   final Function(String title, String content, ForumCategory category) onPost;
 
-  const _CreatePostSheet({required this.onPost});
+  const _CreatePostSheetContent({required this.onPost});
 
   @override
-  State<_CreatePostSheet> createState() => _CreatePostSheetState();
+  State<_CreatePostSheetContent> createState() => _CreatePostSheetContentState();
 }
 
-class _CreatePostSheetState extends State<_CreatePostSheet> {
+class _CreatePostSheetContentState extends State<_CreatePostSheetContent> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   ForumCategory _category = ForumCategory.question;
@@ -622,86 +625,68 @@ class _CreatePostSheetState extends State<_CreatePostSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding:
-          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: AppColors.stone200,
-                    borderRadius: BorderRadius.circular(2)),
-              ),
+    return KeyboardAwareSheetContent(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.auto_awesome, color: AppColors.primary500),
+              const SizedBox(width: 8),
+              Text('New Post', style: Theme.of(context).textTheme.titleLarge),
+            ],
+          ),
+          const SizedBox(height: 20),
+          AppTextField(
+            controller: _titleController,
+            hintText: 'Give your post a title...',
+            decoration: const InputDecoration(
+              hintText: 'Give your post a title...',
+              border: InputBorder.none,
             ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Icon(Icons.auto_awesome, color: AppColors.primary500),
-                const SizedBox(width: 8),
-                Text('New Post', style: Theme.of(context).textTheme.titleLarge),
-              ],
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          AppTextField(
+            controller: _contentController,
+            hintText: "What's on your mind?",
+            decoration: InputDecoration(
+              hintText: "What's on your mind?",
+              border: InputBorder.none,
+              hintStyle: TextStyle(color: AppColors.stone400),
             ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _titleController,
-              decoration: const InputDecoration(
-                hintText: 'Give your post a title...',
-                border: InputBorder.none,
-              ),
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            maxLines: 4,
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            children: ForumCategory.values.map((cat) {
+              final isSelected = _category == cat;
+              return ChoiceChip(
+                label: Text(cat.displayName),
+                selected: isSelected,
+                selectedColor: AppColors.primary100,
+                onSelected: (_) => setState(() => _category = cat),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : _submit,
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Text('Post'),
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _contentController,
-              decoration: InputDecoration(
-                hintText: "What's on your mind?",
-                border: InputBorder.none,
-                hintStyle: TextStyle(color: AppColors.stone400),
-              ),
-              maxLines: 4,
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              children: ForumCategory.values.map((cat) {
-                final isSelected = _category == cat;
-                return ChoiceChip(
-                  label: Text(cat.displayName),
-                  selected: isSelected,
-                  selectedColor: AppColors.primary100,
-                  onSelected: (_) => setState(() => _category = cat),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _submit,
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Text('Post'),
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

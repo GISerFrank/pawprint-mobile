@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/theme/pet_theme.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/providers/providers.dart';
 import '../../../../core/models/models.dart';
@@ -16,9 +17,10 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final petAsync = ref.watch(currentPetProvider);
     final remindersAsync = ref.watch(remindersProvider);
+    final theme = ref.watch(currentPetThemeProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.cream,
+      backgroundColor: theme.background,
       body: SafeArea(
         child: petAsync.when(
           loading: () => const Center(child: AppLoadingIndicator()),
@@ -28,11 +30,12 @@ class HomePage extends ConsumerWidget {
           ),
           data: (pet) {
             if (pet == null) {
-              return _NoPetView();
+              return _NoPetView(theme: theme);
             }
             return _HomeContent(
               pet: pet,
               remindersAsync: remindersAsync,
+              theme: theme,
             );
           },
         ),
@@ -43,6 +46,10 @@ class HomePage extends ConsumerWidget {
 
 /// 没有宠物时的视图
 class _NoPetView extends StatelessWidget {
+  final PetTheme theme;
+
+  const _NoPetView({required this.theme});
+
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -53,14 +60,14 @@ class _NoPetView extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(24),
-              decoration: const BoxDecoration(
-                color: AppColors.primary100,
+              decoration: BoxDecoration(
+                color: theme.primaryLight,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.pets,
                 size: 64,
-                color: AppColors.primary500,
+                color: theme.primary,
               ),
             ),
             const SizedBox(height: 24),
@@ -77,10 +84,15 @@ class _NoPetView extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
-            PrimaryGradientButton(
-              label: 'Add Pet',
-              icon: Icons.add,
+            ElevatedButton.icon(
               onPressed: () => context.go(AppRoutes.onboarding),
+              icon: const Icon(Icons.add),
+              label: const Text('Add Pet'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.primary,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              ),
             ),
           ],
         ),
@@ -93,18 +105,24 @@ class _NoPetView extends StatelessWidget {
 class _HomeContent extends ConsumerWidget {
   final Pet pet;
   final AsyncValue<List<Reminder>> remindersAsync;
+  final PetTheme theme;
 
   const _HomeContent({
     required this.pet,
     required this.remindersAsync,
+    required this.theme,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final illnessAsync = ref.watch(activeIllnessProvider);
+
     return RefreshIndicator(
+      color: theme.primary,
       onRefresh: () async {
         ref.invalidate(currentPetProvider);
         ref.invalidate(remindersProvider);
+        ref.invalidate(activeIllnessProvider);
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -112,28 +130,52 @@ class _HomeContent extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
-            _Header(petName: pet.name),
+            // Header with Pet Switcher
+            _Header(pet: pet, theme: theme),
             const SizedBox(height: 24),
 
+            // Health Alert Banner (if sick)
+            illnessAsync.when(
+              loading: () => const SizedBox(),
+              error: (_, __) => const SizedBox(),
+              data: (illness) {
+                if (illness == null || !pet.isSick) return const SizedBox();
+                return Column(
+                  children: [
+                    HealthAlertBanner(
+                      petName: pet.name,
+                      illness: illness,
+                      onUpdateTap: () => showAppNotification(context,
+                          message: 'Update feature coming soon',
+                          type: NotificationType.info),
+                      onVisitedVetTap: illness.sickType == SickType.undiagnosed
+                          ? () => _showVisitedVetSheet(context, illness)
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                );
+              },
+            ),
+
             // Pet Card
-            _PetCard(pet: pet),
+            _PetCard(pet: pet, theme: theme),
             const SizedBox(height: 24),
 
             // Quick Stats
-            _QuickStats(pet: pet),
+            _QuickStats(pet: pet, theme: theme),
             const SizedBox(height: 24),
 
             // Upcoming Reminders
-            _UpcomingReminders(remindersAsync: remindersAsync),
+            _UpcomingReminders(remindersAsync: remindersAsync, theme: theme),
             const SizedBox(height: 24),
 
             // Quick Actions
-            _QuickActions(),
+            _QuickActions(theme: theme),
             const SizedBox(height: 24),
 
             // Tips Section
-            _HealthTips(species: pet.species),
+            _HealthTips(species: pet.species, theme: theme),
 
             const SizedBox(height: 100), // Bottom nav padding
           ],
@@ -141,13 +183,157 @@ class _HomeContent extends ConsumerWidget {
       ),
     );
   }
+
+  void _showVisitedVetSheet(BuildContext context, IllnessRecord illness) {
+    showDraggableBottomSheet(
+      context: context,
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      child: _VisitedVetSheetContent(illness: illness),
+    );
+  }
+}
+
+class _VisitedVetSheetContent extends ConsumerStatefulWidget {
+  final IllnessRecord illness;
+  const _VisitedVetSheetContent({required this.illness});
+
+  @override
+  ConsumerState<_VisitedVetSheetContent> createState() => _VisitedVetSheetContentState();
+}
+
+class _VisitedVetSheetContentState extends ConsumerState<_VisitedVetSheetContent> {
+  final _diagnosisController = TextEditingController();
+  final _vetNotesController = TextEditingController();
+  DateTime? _followUpDate;
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _diagnosisController.dispose();
+    _vetNotesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_diagnosisController.text.isEmpty) {
+      showAppNotification(context,
+          message: 'Please enter the diagnosis', type: NotificationType.error);
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      await ref.read(illnessNotifierProvider.notifier).updateIllness(
+            illnessId: widget.illness.id,
+            sickType: SickType.diagnosed,
+            diagnosis: _diagnosisController.text,
+            vetNotes: _vetNotesController.text.isNotEmpty
+                ? _vetNotesController.text
+                : null,
+            followUpDate: _followUpDate,
+          );
+      if (mounted) {
+        Navigator.pop(context);
+        showAppNotification(context,
+            message: 'Updated! Hope the treatment helps 💚',
+            type: NotificationType.success);
+      }
+    } catch (e) {
+      showAppNotification(context,
+          message: 'Failed to update', type: NotificationType.error);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return KeyboardAwareSheetContent(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('What did the vet say?',
+              style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 24),
+          Text('Diagnosis',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, color: AppColors.stone600)),
+          const SizedBox(height: 8),
+          TextField(
+              controller: _diagnosisController,
+              decoration: const InputDecoration(
+                  hintText: 'e.g., Upper respiratory infection')),
+          const SizedBox(height: 16),
+          Text('Treatment / Notes',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, color: AppColors.stone600)),
+          const SizedBox(height: 8),
+          TextField(
+              controller: _vetNotesController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                  hintText: 'Any instructions from the vet...')),
+          const SizedBox(height: 16),
+          Text('Follow-up Appointment',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, color: AppColors.stone600)),
+          const SizedBox(height: 8),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                    color: AppColors.primary100,
+                    borderRadius: BorderRadius.circular(12)),
+                child: Icon(Icons.calendar_today,
+                    color: AppColors.primary500, size: 20)),
+            title: Text(
+                _followUpDate != null
+                    ? '${_followUpDate!.month}/${_followUpDate!.day}/${_followUpDate!.year}'
+                    : 'No appointment scheduled',
+                style: TextStyle(
+                    color: _followUpDate != null
+                        ? AppColors.stone800
+                        : AppColors.stone400)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              final date = await showDatePicker(
+                  context: context,
+                  initialDate: DateTime.now().add(const Duration(days: 7)),
+                  firstDate: DateTime.now(),
+                  lastDate: DateTime.now().add(const Duration(days: 365)));
+              if (date != null) setState(() => _followUpDate = date);
+            },
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton(
+              onPressed: _loading ? null : _save,
+              child: _loading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Text('Save'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// 顶部 Header
 class _Header extends StatelessWidget {
-  final String petName;
+  final Pet pet;
+  final PetTheme theme;
 
-  const _Header({required this.petName});
+  const _Header({required this.pet, required this.theme});
 
   String _getGreeting() {
     final hour = DateTime.now().hour;
@@ -159,45 +345,64 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${_getGreeting()} 👋',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppColors.stone500,
+        // Pet Avatar (clickable for switching)
+        PetAvatarButton(size: 52),
+        const SizedBox(width: 16),
+
+        // Greeting
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${_getGreeting()} ${theme.emoji}',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: AppColors.stone500,
+                    ),
+              ),
+              const SizedBox(height: 2),
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      '${pet.name}\'s Home',
+                      style:
+                          Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: theme.primaryDark,
+                              ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '$petName\'s Home',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-          ],
+                  const SizedBox(width: 8),
+                  Icon(Icons.keyboard_arrow_down,
+                      color: theme.primary, size: 20),
+                ],
+              ),
+            ],
+          ),
         ),
+
         // Local mode indicator
         if (AppConfig.useLocalMode)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: AppColors.sky100,
+              color: theme.primaryLight,
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.offline_bolt, size: 16, color: AppColors.sky500),
-                SizedBox(width: 4),
+                Icon(Icons.offline_bolt, size: 16, color: theme.primary),
+                const SizedBox(width: 4),
                 Text(
                   'Local',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.sky500,
+                    color: theme.primary,
                   ),
                 ),
               ],
@@ -209,23 +414,27 @@ class _Header extends StatelessWidget {
 }
 
 /// 宠物卡片
-class _PetCard extends StatelessWidget {
+class _PetCard extends ConsumerWidget {
   final Pet pet;
+  final PetTheme theme;
 
-  const _PetCard({required this.pet});
+  const _PetCard({required this.pet, required this.theme});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.primary400, AppColors.primary600],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: pet.isSick
+            ? const LinearGradient(
+                colors: [AppColors.peach400, AppColors.peach500],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : theme.headerGradient,
         borderRadius: BorderRadius.circular(28),
-        boxShadow: AppShadows.primary(AppColors.primary500),
+        boxShadow:
+            AppShadows.primary(pet.isSick ? AppColors.peach500 : theme.primary),
       ),
       child: Row(
         children: [
@@ -243,7 +452,7 @@ class _PetCard extends StatelessWidget {
               child: pet.avatarUrl != null && pet.avatarUrl!.isNotEmpty
                   ? _buildAvatar(pet.avatarUrl!)
                   : Icon(
-                      Icons.pets,
+                      theme.icon,
                       size: 40,
                       color: Colors.white.withOpacity(0.8),
                     ),
@@ -256,12 +465,23 @@ class _PetCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  pet.name,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        pet.name,
+                        style:
+                            Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
                       ),
+                    ),
+                    HealthStatusIndicator(
+                      status: pet.healthStatus,
+                      onTap: () => _showHealthStatusSheet(context, ref),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -355,13 +575,24 @@ class _PetCard extends StatelessWidget {
       color: Colors.white.withOpacity(0.8),
     );
   }
+
+  void _showHealthStatusSheet(BuildContext context, WidgetRef ref) {
+    showDraggableBottomSheet(
+      context: context,
+      initialChildSize: 0.5,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      child: MarkSickSheetContent(petId: pet.id, petName: pet.name),
+    );
+  }
 }
 
 /// 快速统计
 class _QuickStats extends StatelessWidget {
   final Pet pet;
+  final PetTheme theme;
 
-  const _QuickStats({required this.pet});
+  const _QuickStats({required this.pet, required this.theme});
 
   @override
   Widget build(BuildContext context) {
@@ -372,8 +603,8 @@ class _QuickStats extends StatelessWidget {
             icon: Icons.cake_outlined,
             label: 'Age',
             value: _formatAge(pet.ageMonths),
-            color: AppColors.peach100,
-            iconColor: AppColors.peach500,
+            color: theme.accentLight,
+            iconColor: theme.accent,
           ),
         ),
         const SizedBox(width: 12),
@@ -382,8 +613,8 @@ class _QuickStats extends StatelessWidget {
             icon: Icons.monitor_weight_outlined,
             label: 'Weight',
             value: '${pet.weightKg.toStringAsFixed(1)} kg',
-            color: AppColors.sky100,
-            iconColor: AppColors.sky500,
+            color: theme.primaryLight,
+            iconColor: theme.primary,
           ),
         ),
         const SizedBox(width: 12),
@@ -473,8 +704,9 @@ class _StatCard extends StatelessWidget {
 /// 即将到来的提醒
 class _UpcomingReminders extends StatelessWidget {
   final AsyncValue<List<Reminder>> remindersAsync;
+  final PetTheme theme;
 
-  const _UpcomingReminders({required this.remindersAsync});
+  const _UpcomingReminders({required this.remindersAsync, required this.theme});
 
   @override
   Widget build(BuildContext context) {
@@ -490,17 +722,19 @@ class _UpcomingReminders extends StatelessWidget {
             ),
             TextButton(
               onPressed: () => context.go(AppRoutes.records),
+              style: TextButton.styleFrom(foregroundColor: theme.primary),
               child: const Text('See All'),
             ),
           ],
         ),
         const SizedBox(height: 12),
         remindersAsync.when(
-          loading: () => const SizedBox(
+          loading: () => SizedBox(
             height: 80,
-            child: Center(child: CircularProgressIndicator()),
+            child:
+                Center(child: CircularProgressIndicator(color: theme.primary)),
           ),
-          error: (_, __) => _EmptyReminders(),
+          error: (_, __) => _EmptyReminders(theme: theme),
           data: (reminders) {
             final upcoming = reminders
                 .where((r) =>
@@ -509,12 +743,13 @@ class _UpcomingReminders extends StatelessWidget {
                 .toList();
 
             if (upcoming.isEmpty) {
-              return _EmptyReminders();
+              return _EmptyReminders(theme: theme);
             }
 
             return Column(
-              children:
-                  upcoming.map((r) => _ReminderTile(reminder: r)).toList(),
+              children: upcoming
+                  .map((r) => _ReminderTile(reminder: r, theme: theme))
+                  .toList(),
             );
           },
         ),
@@ -524,6 +759,10 @@ class _UpcomingReminders extends StatelessWidget {
 }
 
 class _EmptyReminders extends StatelessWidget {
+  final PetTheme theme;
+
+  const _EmptyReminders({required this.theme});
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -538,10 +777,10 @@ class _EmptyReminders extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.stone50,
+              color: theme.primaryLight,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.event_available, color: AppColors.stone400),
+            child: Icon(Icons.event_available, color: theme.primary),
           ),
           const SizedBox(width: 16),
           const Expanded(
@@ -573,8 +812,9 @@ class _EmptyReminders extends StatelessWidget {
 
 class _ReminderTile extends StatelessWidget {
   final Reminder reminder;
+  final PetTheme theme;
 
-  const _ReminderTile({required this.reminder});
+  const _ReminderTile({required this.reminder, required this.theme});
 
   IconData _getIcon() {
     switch (reminder.reminderType) {
@@ -592,11 +832,11 @@ class _ReminderTile extends StatelessWidget {
   Color _getColor() {
     switch (reminder.reminderType) {
       case ReminderType.appointment:
-        return AppColors.primary500;
+        return theme.primary;
       case ReminderType.medication:
         return AppColors.peach500;
       case ReminderType.grooming:
-        return AppColors.mint500;
+        return theme.accent;
       case ReminderType.other:
         return AppColors.sky500;
     }
@@ -723,6 +963,10 @@ class _ReminderTile extends StatelessWidget {
 
 /// 快速操作
 class _QuickActions extends StatelessWidget {
+  final PetTheme theme;
+
+  const _QuickActions({required this.theme});
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -737,10 +981,10 @@ class _QuickActions extends StatelessWidget {
           children: [
             Expanded(
               child: _QuickActionCard(
-                icon: Icons.timeline,
-                label: 'Timeline',
-                color: AppColors.sky100,
-                iconColor: AppColors.sky500,
+                icon: Icons.favorite,
+                label: 'Care',
+                color: theme.primaryLight,
+                iconColor: theme.primary,
                 onTap: () => context.go(AppRoutes.records),
               ),
             ),
@@ -749,8 +993,8 @@ class _QuickActions extends StatelessWidget {
               child: _QuickActionCard(
                 icon: Icons.auto_awesome,
                 label: 'AI Vet',
-                color: AppColors.mint100,
-                iconColor: AppColors.mint500,
+                color: theme.accentLight,
+                iconColor: theme.accent,
                 onTap: () => context.go(AppRoutes.analysis),
               ),
             ),
@@ -822,8 +1066,9 @@ class _QuickActionCard extends StatelessWidget {
 /// 健康小贴士
 class _HealthTips extends StatelessWidget {
   final PetSpecies species;
+  final PetTheme theme;
 
-  const _HealthTips({required this.species});
+  const _HealthTips({required this.species, required this.theme});
 
   List<Map<String, String>> _getTips() {
     switch (species) {
@@ -911,9 +1156,9 @@ class _HealthTips extends StatelessWidget {
                   gradient: LinearGradient(
                     colors: [
                       index == 0
-                          ? AppColors.primary50
+                          ? theme.primaryLight
                           : index == 1
-                              ? AppColors.peach100.withOpacity(0.5)
+                              ? theme.accentLight
                               : AppColors.mint100.withOpacity(0.5),
                       Colors.white,
                     ],

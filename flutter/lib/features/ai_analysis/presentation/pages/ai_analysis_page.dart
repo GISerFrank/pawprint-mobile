@@ -260,7 +260,9 @@ class _AIAnalysisPageState extends ConsumerState<AIAnalysisPage> {
                       child: Text(
                         part.displayName,
                         style: TextStyle(
-                          color: selected ? Color.fromARGB(255, 255, 146, 37) : AppColors.stone600,
+                          color: selected
+                              ? AppColors.stone900
+                              : AppColors.stone600,
                           fontWeight: FontWeight.bold,
                           fontSize: 13,
                         ),
@@ -280,18 +282,11 @@ class _AIAnalysisPageState extends ConsumerState<AIAnalysisPage> {
                   color: AppColors.stone600,
                   fontSize: 12)),
           const SizedBox(height: 8),
-          TextField(
+          AppTextField(
             controller: _symptomsController,
             maxLines: 3,
-            decoration: InputDecoration(
-              hintText:
-                  'e.g., ${pet.name} is scratching their ${_selectedPart.displayName.toLowerCase()} excessively...',
-              filled: true,
-              fillColor: AppColors.stone50,
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none),
-            ),
+            hintText:
+                'e.g., ${pet.name} is scratching their ${_selectedPart.displayName.toLowerCase()} excessively...',
           ),
           const SizedBox(height: 20),
 
@@ -372,12 +367,13 @@ class _AIAnalysisPageState extends ConsumerState<AIAnalysisPage> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline, color: AppColors.error, size: 20),
+                  const Icon(Icons.error_outline,
+                      color: AppColors.error, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                       child: Text(state.error!,
-                          style:
-                              const TextStyle(color: AppColors.error, fontSize: 13))),
+                          style: const TextStyle(
+                              color: AppColors.error, fontSize: 13))),
                 ],
               ),
             ),
@@ -532,8 +528,8 @@ class _AIAnalysisPageState extends ConsumerState<AIAnalysisPage> {
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
-      errorBuilder: (_, __, ___) =>
-          const Center(child: Icon(Icons.broken_image, color: AppColors.stone400)),
+      errorBuilder: (_, __, ___) => const Center(
+          child: Icon(Icons.broken_image, color: AppColors.stone400)),
     );
   }
 
@@ -608,7 +604,8 @@ class _AIAnalysisPageState extends ConsumerState<AIAnalysisPage> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.warning_amber, color: AppColors.peach500, size: 20),
+                const Icon(Icons.warning_amber,
+                    color: AppColors.peach500, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -663,10 +660,7 @@ class _AIAnalysisPageState extends ConsumerState<AIAnalysisPage> {
           ],
         ),
         const SizedBox(height: 12),
-        ...history
-            .take(5)
-            .map((session) => _HistoryItem(session: session))
-            ,
+        ...history.take(5).map((session) => _HistoryItem(session: session)),
       ],
     );
   }
@@ -791,8 +785,8 @@ class _HistoryItemState extends State<_HistoryItem> {
               decoration: BoxDecoration(
                   color: AppColors.sky50,
                   borderRadius: BorderRadius.circular(10)),
-              child:
-                  const Icon(Icons.calendar_today, color: AppColors.sky500, size: 20),
+              child: const Icon(Icons.calendar_today,
+                  color: AppColors.sky500, size: 20),
             ),
             title: Text('${widget.session.bodyPart.displayName} Issue',
                 style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -838,7 +832,8 @@ class _HistoryItemState extends State<_HistoryItem> {
                   MarkdownBody(
                     data: widget.session.analysisResult,
                     styleSheet: MarkdownStyleSheet(
-                      p: const TextStyle(color: AppColors.stone600, fontSize: 13),
+                      p: const TextStyle(
+                          color: AppColors.stone600, fontSize: 13),
                     ),
                   ),
                 ],
