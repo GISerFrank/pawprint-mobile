@@ -32,9 +32,13 @@ class AppColors {
   // Accent Colors
   static const Color cream = Color(0xFFFDFBF7);
 
-  static const Color mint100 = Color(0xFFD1FAE5);
-  static const Color mint500 = Color(0xFF10B981);
+  static const Color mint50 = Color(0xFFD1FAE5);
+  static const Color mint100 = Color.fromARGB(255, 181, 245, 212);
+  static const Color mint200 = Color.fromARGB(255, 115, 239, 175);
+  static const Color mint400 = Color.fromARGB(255, 68, 220, 141);
+  static const Color mint500 = Color.fromARGB(255, 9, 197, 134);
   static const Color mint600 = Color.fromARGB(255, 8, 145, 99);
+  static const Color mint700 = Color.fromARGB(255, 0, 103, 50);
 
   static const Color peach50 = Color(0xFFFFF7ED);
   static const Color peach100 = Color(0xFFFFEDD5);
@@ -46,9 +50,13 @@ class AppColors {
 
   static const Color sky50 = Color(0xFFF0F9FF);
   static const Color sky100 = Color(0xFFE0F2FE);
+  static const Color sky200 = Color(0xFFBAE6FD);
   static const Color sky400 = Color(0xFF38BDF8);
   static const Color sky500 = Color(0xFF0EA5E9);
+  static const Color sky600 = Color(0xFF0284C7);
   static const Color sky900 = Color(0xFF0C4A6E);
+
+  static const Color lavender500 = Color.fromARGB(255, 159, 140, 255);
 
   // Semantic Colors
   static const Color success = mint500;
@@ -253,7 +261,8 @@ class AppTheme {
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: AppColors.error, width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         hintStyle: GoogleFonts.quicksand(
           color: AppColors.stone300,
           fontWeight: FontWeight.w500,
@@ -341,44 +350,44 @@ class AppShadows {
   AppShadows._();
 
   static List<BoxShadow> get soft => [
-    BoxShadow(
-      color: Colors.black.withOpacity(0.05),
-      blurRadius: 20,
-      offset: const Offset(0, 4),
-    ),
-  ];
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 20,
+          offset: const Offset(0, 4),
+        ),
+      ];
 
   static List<BoxShadow> get card => [
-    BoxShadow(
-      color: Colors.black.withOpacity(0.03),
-      blurRadius: 15,
-      offset: const Offset(0, 10),
-    ),
-    BoxShadow(
-      color: Colors.black.withOpacity(0.01),
-      blurRadius: 6,
-      offset: const Offset(0, 4),
-    ),
-  ];
+        BoxShadow(
+          color: Colors.black.withOpacity(0.03),
+          blurRadius: 15,
+          offset: const Offset(0, 10),
+        ),
+        BoxShadow(
+          color: Colors.black.withOpacity(0.01),
+          blurRadius: 6,
+          offset: const Offset(0, 4),
+        ),
+      ];
 
   static List<BoxShadow> get float => [
-    BoxShadow(
-      color: Colors.black.withOpacity(0.05),
-      blurRadius: 25,
-      offset: const Offset(0, 20),
-    ),
-    BoxShadow(
-      color: Colors.black.withOpacity(0.01),
-      blurRadius: 10,
-      offset: const Offset(0, 10),
-    ),
-  ];
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 25,
+          offset: const Offset(0, 20),
+        ),
+        BoxShadow(
+          color: Colors.black.withOpacity(0.01),
+          blurRadius: 10,
+          offset: const Offset(0, 10),
+        ),
+      ];
 
   static List<BoxShadow> primary(Color color) => [
-    BoxShadow(
-      color: color.withOpacity(0.3),
-      blurRadius: 20,
-      offset: const Offset(0, 10),
-    ),
-  ];
+        BoxShadow(
+          color: color.withOpacity(0.3),
+          blurRadius: 20,
+          offset: const Offset(0, 10),
+        ),
+      ];
 }

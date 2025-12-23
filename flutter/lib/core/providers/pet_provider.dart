@@ -26,12 +26,12 @@ final petsListProvider = FutureProvider<List<Pet>>((ref) async {
 /// 当前选中的宠物详情
 final currentPetProvider = FutureProvider<Pet?>((ref) async {
   final petId = ref.watch(selectedPetIdProvider);
-  
+
   if (petId == null) {
     // 如果没有选中，尝试获取第一个宠物
     final pets = await ref.watch(petsListProvider.future);
     if (pets.isEmpty) return null;
-    
+
     // 自动选中第一个
     ref.read(selectedPetIdProvider.notifier).state = pets.first.id;
     return pets.first;
@@ -57,9 +57,11 @@ class PetNotifier extends StateNotifier<AsyncValue<Pet?>> {
     required String name,
     required PetSpecies species,
     String breed = 'Unknown',
-    int ageMonths = 0,
+    DateTime? birthday,
+    DateTime? gotchaDay,
     PetGender gender = PetGender.male,
     double weightKg = 0,
+    WeightUnit weightUnit = WeightUnit.kg,
     bool isNeutered = false,
     String? allergies,
     Uint8List? avatarBytes,
@@ -69,12 +71,13 @@ class PetNotifier extends StateNotifier<AsyncValue<Pet?>> {
     if (user == null) throw Exception('User not authenticated');
 
     String? avatarUrl;
-    
+
     // 处理头像
     if (avatarBytes != null) {
       if (AppConfig.useLocalMode) {
         final localStorage = _ref.read(localStorageServiceProvider);
-        final key = '${user.id}_avatar_${DateTime.now().millisecondsSinceEpoch}';
+        final key =
+            '${user.id}_avatar_${DateTime.now().millisecondsSinceEpoch}';
         avatarUrl = await localStorage.saveImageLocally(key, avatarBytes);
       } else {
         final storage = _ref.read(storageServiceProvider);
@@ -92,9 +95,11 @@ class PetNotifier extends StateNotifier<AsyncValue<Pet?>> {
       name: name,
       species: species,
       breed: breed,
-      ageMonths: ageMonths,
+      birthday: birthday,
+      gotchaDay: gotchaDay,
       gender: gender,
       weightKg: weightKg,
+      weightUnit: weightUnit,
       isNeutered: isNeutered,
       allergies: allergies,
       avatarUrl: avatarUrl,
@@ -104,11 +109,11 @@ class PetNotifier extends StateNotifier<AsyncValue<Pet?>> {
     );
 
     Pet createdPet;
-    
+
     if (AppConfig.useLocalMode) {
       final localStorage = _ref.read(localStorageServiceProvider);
       createdPet = await localStorage.createPet(newPet);
-      
+
       // 处理身体部位图片
       if (bodyPartImages != null) {
         for (final entry in bodyPartImages.entries) {
@@ -119,7 +124,7 @@ class PetNotifier extends StateNotifier<AsyncValue<Pet?>> {
     } else {
       final db = _ref.read(databaseServiceProvider);
       createdPet = await db.createPet(newPet);
-      
+
       // 更新头像 URL
       if (avatarBytes != null) {
         final storage = _ref.read(storageServiceProvider);
@@ -127,9 +132,10 @@ class PetNotifier extends StateNotifier<AsyncValue<Pet?>> {
           petId: createdPet.id,
           fileBytes: avatarBytes,
         );
-        createdPet = await db.updatePet(createdPet.id, {'avatar_url': avatarUrl});
+        createdPet =
+            await db.updatePet(createdPet.id, {'avatar_url': avatarUrl});
       }
-      
+
       // 处理身体部位图片
       if (bodyPartImages != null) {
         final storage = _ref.read(storageServiceProvider);
@@ -160,7 +166,7 @@ class PetNotifier extends StateNotifier<AsyncValue<Pet?>> {
   /// 更新宠物信息
   Future<Pet> updatePet(String petId, Map<String, dynamic> updates) async {
     Pet updatedPet;
-    
+
     if (AppConfig.useLocalMode) {
       final localStorage = _ref.read(localStorageServiceProvider);
       updatedPet = await localStorage.updatePet(petId, updates);
@@ -168,7 +174,7 @@ class PetNotifier extends StateNotifier<AsyncValue<Pet?>> {
       final db = _ref.read(databaseServiceProvider);
       updatedPet = await db.updatePet(petId, updates);
     }
-    
+
     _ref.invalidate(currentPetProvider);
     _ref.invalidate(petsListProvider);
     return updatedPet;
@@ -177,7 +183,7 @@ class PetNotifier extends StateNotifier<AsyncValue<Pet?>> {
   /// 更新宠物头像
   Future<String> updateAvatar(String petId, Uint8List imageBytes) async {
     String avatarUrl;
-    
+
     if (AppConfig.useLocalMode) {
       final localStorage = _ref.read(localStorageServiceProvider);
       final key = '${petId}_avatar_${DateTime.now().millisecondsSinceEpoch}';
@@ -186,10 +192,11 @@ class PetNotifier extends StateNotifier<AsyncValue<Pet?>> {
     } else {
       final storage = _ref.read(storageServiceProvider);
       final db = _ref.read(databaseServiceProvider);
-      avatarUrl = await storage.uploadPetAvatar(petId: petId, fileBytes: imageBytes);
+      avatarUrl =
+          await storage.uploadPetAvatar(petId: petId, fileBytes: imageBytes);
       await db.updatePet(petId, {'avatar_url': avatarUrl});
     }
-    
+
     _ref.invalidate(currentPetProvider);
     return avatarUrl;
   }
@@ -215,19 +222,20 @@ class PetNotifier extends StateNotifier<AsyncValue<Pet?>> {
       final db = _ref.read(databaseServiceProvider);
       await db.deletePet(petId);
     }
-    
+
     // 清除选中状态
     if (_ref.read(selectedPetIdProvider) == petId) {
       _ref.read(selectedPetIdProvider.notifier).state = null;
     }
-    
+
     _ref.invalidate(petsListProvider);
     _ref.invalidate(currentPetProvider);
   }
 }
 
 /// 宠物管理 Provider
-final petNotifierProvider = StateNotifierProvider<PetNotifier, AsyncValue<Pet?>>((ref) {
+final petNotifierProvider =
+    StateNotifierProvider<PetNotifier, AsyncValue<Pet?>>((ref) {
   return PetNotifier(ref);
 });
 
@@ -382,6 +390,7 @@ class PetProfileNotifier extends StateNotifier<IDCardGenerationState> {
 }
 
 /// 宠物 Profile Notifier Provider
-final petProfileNotifierProvider = StateNotifierProvider<PetProfileNotifier, IDCardGenerationState>((ref) {
+final petProfileNotifierProvider =
+    StateNotifierProvider<PetProfileNotifier, IDCardGenerationState>((ref) {
   return PetProfileNotifier(ref);
 });

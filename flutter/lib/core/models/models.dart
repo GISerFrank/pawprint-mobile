@@ -3,3 +3,7 @@ export 'enums.dart';
 export 'pet.dart';
 export 'health_record.dart';
 export 'forum.dart';
+export 'illness.dart';
+export 'diet.dart';
+export 'activity.dart';
+export 'care_plan.dart';

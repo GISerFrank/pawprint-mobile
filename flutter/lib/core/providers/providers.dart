@@ -5,3 +5,8 @@ export 'health_records_provider.dart';
 export 'ai_analysis_provider.dart';
 export 'forum_provider.dart';
 export 'card_system_provider.dart';
+export 'illness_provider.dart';
+export 'diet_provider.dart';
+export 'activity_provider.dart';
+export 'pet_theme_provider.dart';
+export 'care_plan_provider.dart';

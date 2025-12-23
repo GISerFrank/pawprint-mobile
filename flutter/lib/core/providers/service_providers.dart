@@ -3,6 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/services.dart';
 import 'auth_provider.dart';
 
+/// Local Storage 服务 Provider
+final localStorageProvider = Provider<LocalStorageService>((ref) {
+  return LocalStorageService();
+});
+
 /// Database 服务 Provider
 final databaseServiceProvider = Provider<DatabaseService>((ref) {
   final client = ref.watch(supabaseClientProvider);

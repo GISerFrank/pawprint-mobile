@@ -6,7 +6,11 @@ import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/register_page.dart';
 import '../../features/onboarding/presentation/pages/onboarding_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
-import '../../features/health_records/presentation/pages/health_records_page.dart';
+import '../../features/health_records/presentation/pages/pet_care_page.dart';
+import '../../features/health_records/presentation/pages/wellness_page.dart';
+import '../../features/health_records/presentation/pages/nutrition_page.dart';
+import '../../features/health_records/presentation/pages/enrichment_page.dart';
+import '../../features/health_records/presentation/pages/grooming_page.dart';
 import '../../features/ai_analysis/presentation/pages/ai_analysis_page.dart';
 import '../../features/forum/presentation/pages/forum_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
@@ -28,13 +32,22 @@ class AppRoutes {
 
   // Main tabs
   static const String home = '/';
-  static const String records = '/records';
+  static const String petCare = '/pet-care';
   static const String analysis = '/analysis';
   static const String forum = '/forum';
   static const String profile = '/profile';
 
+  // Legacy alias
+  static const String records = '/pet-care';
+
   // Sub pages
   static const String cardShop = '/cards';
+  
+  // Category detail pages
+  static const String wellness = '/pet-care/wellness';
+  static const String nutrition = '/pet-care/nutrition';
+  static const String enrichment = '/pet-care/enrichment';
+  static const String grooming = '/pet-care/grooming';
 }
 
 /// 路由配置 Provider
@@ -105,10 +118,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
-            path: AppRoutes.records,
-            name: 'records',
+            path: AppRoutes.petCare,
+            name: 'petCare',
             pageBuilder: (context, state) => const NoTransitionPage(
-              child: HealthRecordsPage(),
+              child: PetCarePage(),
             ),
           ),
           GoRoute(
@@ -140,6 +153,28 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.cardShop,
         name: 'cardShop',
         builder: (context, state) => const CardShopPage(),
+      ),
+      
+      // Category detail pages
+      GoRoute(
+        path: AppRoutes.wellness,
+        name: 'wellness',
+        builder: (context, state) => const WellnessPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.nutrition,
+        name: 'nutrition',
+        builder: (context, state) => const NutritionPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.enrichment,
+        name: 'enrichment',
+        builder: (context, state) => const EnrichmentPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.grooming,
+        name: 'grooming',
+        builder: (context, state) => const GroomingPage(),
       ),
     ],
 

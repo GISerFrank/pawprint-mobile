@@ -389,4 +389,324 @@ class DatabaseService {
       });
     }
   }
+
+  // ============================================
+  // Illness Records
+  // ============================================
+
+  Future<List<IllnessRecord>> getIllnessRecords(String petId) async {
+    final response = await _client
+        .from('illness_records')
+        .select()
+        .eq('pet_id', petId)
+        .order('start_date', ascending: false);
+    return (response as List).map((json) => IllnessRecord.fromJson(json)).toList();
+  }
+
+  Future<IllnessRecord?> getIllnessRecord(String illnessId) async {
+    final response = await _client
+        .from('illness_records')
+        .select()
+        .eq('id', illnessId)
+        .maybeSingle();
+    if (response == null) return null;
+    return IllnessRecord.fromJson(response);
+  }
+
+  Future<IllnessRecord> createIllnessRecord(IllnessRecord record) async {
+    final response = await _client
+        .from('illness_records')
+        .insert({
+          'pet_id': record.petId,
+          'start_date': record.startDate.toIso8601String(),
+          'end_date': record.endDate?.toIso8601String(),
+          'sick_type': record.sickType.displayName,
+          'symptoms': record.symptoms,
+          'diagnosis': record.diagnosis,
+          'vet_notes': record.vetNotes,
+          'follow_up_date': record.followUpDate?.toIso8601String(),
+          'recovery_note': record.recoveryNote,
+        })
+        .select()
+        .single();
+    return IllnessRecord.fromJson(response);
+  }
+
+  Future<void> updateIllnessRecord(String illnessId, Map<String, dynamic> updates) async {
+    await _client
+        .from('illness_records')
+        .update(updates)
+        .eq('id', illnessId);
+  }
+
+  // ============================================
+  // Medications
+  // ============================================
+
+  Future<List<Medication>> getMedications(String illnessId) async {
+    final response = await _client
+        .from('medications')
+        .select()
+        .eq('illness_id', illnessId);
+    return (response as List).map((json) => Medication.fromJson(json)).toList();
+  }
+
+  Future<Medication> createMedication(Medication medication) async {
+    final response = await _client
+        .from('medications')
+        .insert({
+          'illness_id': medication.illnessId,
+          'pet_id': medication.petId,
+          'name': medication.name,
+          'dosage': medication.dosage,
+          'frequency': medication.frequency,
+          'times_per_day': medication.timesPerDay,
+          'start_date': medication.startDate.toIso8601String(),
+          'end_date': medication.endDate?.toIso8601String(),
+        })
+        .select()
+        .single();
+    return Medication.fromJson(response);
+  }
+
+  Future<void> deleteMedication(String medicationId) async {
+    await _client.from('medications').delete().eq('id', medicationId);
+  }
+
+  // ============================================
+  // Medication Logs
+  // ============================================
+
+  Future<List<MedicationLog>> getMedicationLogs(String petId, DateTime start, DateTime end) async {
+    final response = await _client
+        .from('medication_logs')
+        .select()
+        .eq('pet_id', petId)
+        .gte('scheduled_time', start.toIso8601String())
+        .lt('scheduled_time', end.toIso8601String());
+    return (response as List).map((json) => MedicationLog.fromJson(json)).toList();
+  }
+
+  Future<MedicationLog> createMedicationLog(MedicationLog log) async {
+    final response = await _client
+        .from('medication_logs')
+        .insert({
+          'medication_id': log.medicationId,
+          'pet_id': log.petId,
+          'scheduled_time': log.scheduledTime.toIso8601String(),
+          'taken_time': log.takenTime?.toIso8601String(),
+          'is_taken': log.isTaken,
+          'is_skipped': log.isSkipped,
+          'note': log.note,
+        })
+        .select()
+        .single();
+    return MedicationLog.fromJson(response);
+  }
+
+  // ============================================
+  // Daily Symptom Logs
+  // ============================================
+
+  Future<List<DailySymptomLog>> getDailySymptomLogs(String illnessId) async {
+    final response = await _client
+        .from('daily_symptom_logs')
+        .select()
+        .eq('illness_id', illnessId)
+        .order('date', ascending: true);
+    return (response as List).map((json) => DailySymptomLog.fromJson(json)).toList();
+  }
+
+  Future<DailySymptomLog> createDailySymptomLog(DailySymptomLog log) async {
+    // Check if already logged today - upsert if exists
+    final today = DateTime(log.date.year, log.date.month, log.date.day);
+    final existing = await _client
+        .from('daily_symptom_logs')
+        .select()
+        .eq('illness_id', log.illnessId)
+        .gte('date', today.toIso8601String())
+        .lt('date', today.add(const Duration(days: 1)).toIso8601String())
+        .maybeSingle();
+
+    if (existing != null) {
+      final response = await _client
+          .from('daily_symptom_logs')
+          .update({'level': log.level.displayName, 'note': log.note})
+          .eq('id', existing['id'])
+          .select()
+          .single();
+      return DailySymptomLog.fromJson(response);
+    }
+
+    final response = await _client
+        .from('daily_symptom_logs')
+        .insert({
+          'illness_id': log.illnessId,
+          'pet_id': log.petId,
+          'date': log.date.toIso8601String(),
+          'level': log.level.displayName,
+          'note': log.note,
+        })
+        .select()
+        .single();
+    return DailySymptomLog.fromJson(response);
+  }
+
+  // ============================================
+  // Feeding Logs
+  // ============================================
+
+  Future<List<FeedingLog>> getFeedingLogs(String petId, DateTime start, DateTime end) async {
+    final response = await _client
+        .from('feeding_logs')
+        .select()
+        .eq('pet_id', petId)
+        .gte('feeding_time', start.toIso8601String())
+        .lt('feeding_time', end.toIso8601String())
+        .order('feeding_time', ascending: false);
+    return (response as List).map((json) => FeedingLog.fromJson(json)).toList();
+  }
+
+  Future<FeedingLog> createFeedingLog(FeedingLog log) async {
+    final response = await _client
+        .from('feeding_logs')
+        .insert({
+          'pet_id': log.petId,
+          'meal_type': log.mealType.displayName,
+          'food_type': log.foodType.displayName,
+          'food_name': log.foodName,
+          'amount': log.amount,
+          'note': log.note,
+          'feeding_time': log.feedingTime.toIso8601String(),
+        })
+        .select()
+        .single();
+    return FeedingLog.fromJson(response);
+  }
+
+  Future<void> deleteFeedingLog(String logId) async {
+    await _client.from('feeding_logs').delete().eq('id', logId);
+  }
+
+  // ============================================
+  // Water Logs
+  // ============================================
+
+  Future<List<WaterLog>> getWaterLogs(String petId, DateTime start, DateTime end) async {
+    final response = await _client
+        .from('water_logs')
+        .select()
+        .eq('pet_id', petId)
+        .gte('log_time', start.toIso8601String())
+        .lt('log_time', end.toIso8601String())
+        .order('log_time', ascending: false);
+    return (response as List).map((json) => WaterLog.fromJson(json)).toList();
+  }
+
+  Future<WaterLog> createWaterLog(WaterLog log) async {
+    final response = await _client
+        .from('water_logs')
+        .insert({
+          'pet_id': log.petId,
+          'amount': log.amount,
+          'log_time': log.logTime.toIso8601String(),
+        })
+        .select()
+        .single();
+    return WaterLog.fromJson(response);
+  }
+
+  // ============================================
+  // Activity Logs
+  // ============================================
+
+  Future<List<ActivityLog>> getActivityLogs(String petId, DateTime start, DateTime end) async {
+    final response = await _client
+        .from('activity_logs')
+        .select()
+        .eq('pet_id', petId)
+        .gte('activity_time', start.toIso8601String())
+        .lt('activity_time', end.toIso8601String())
+        .order('activity_time', ascending: false);
+    return (response as List).map((json) => ActivityLog.fromJson(json)).toList();
+  }
+
+  Future<ActivityLog> createActivityLog(ActivityLog log) async {
+    final response = await _client
+        .from('activity_logs')
+        .insert({
+          'pet_id': log.petId,
+          'activity_type': log.activityType.displayName,
+          'intensity': log.intensity.displayName,
+          'duration_minutes': log.durationMinutes,
+          'distance_km': log.distanceKm,
+          'note': log.note,
+          'activity_time': log.activityTime.toIso8601String(),
+        })
+        .select()
+        .single();
+    return ActivityLog.fromJson(response);
+  }
+
+  Future<void> deleteActivityLog(String logId) async {
+    await _client.from('activity_logs').delete().eq('id', logId);
+  }
+
+  // ============================================
+  // Care Metrics
+  // ============================================
+
+  Future<List<CareMetric>> getCareMetrics(String petId) async {
+    final response = await _client
+        .from('care_metrics')
+        .select()
+        .eq('pet_id', petId)
+        .order('priority', ascending: true);
+    return (response as List).map((json) => CareMetric.fromJson(json)).toList();
+  }
+
+  Future<CareMetric> createCareMetric(CareMetric metric) async {
+    final response = await _client
+        .from('care_metrics')
+        .insert(metric.toJson())
+        .select()
+        .single();
+    return CareMetric.fromJson(response);
+  }
+
+  Future<void> updateCareMetric(String metricId, Map<String, dynamic> updates) async {
+    await _client.from('care_metrics').update(updates).eq('id', metricId);
+  }
+
+  Future<void> deleteCareMetric(String metricId) async {
+    await _client.from('care_metrics').delete().eq('id', metricId);
+  }
+
+  // ============================================
+  // Metric Logs
+  // ============================================
+
+  Future<List<MetricLog>> getMetricLogs(String petId, DateTime start, DateTime end) async {
+    final response = await _client
+        .from('metric_logs')
+        .select()
+        .eq('pet_id', petId)
+        .gte('logged_at', start.toIso8601String())
+        .lt('logged_at', end.toIso8601String())
+        .order('logged_at', ascending: false);
+    return (response as List).map((json) => MetricLog.fromJson(json)).toList();
+  }
+
+  Future<MetricLog> createMetricLog(MetricLog log) async {
+    final response = await _client
+        .from('metric_logs')
+        .insert(log.toJson())
+        .select()
+        .single();
+    return MetricLog.fromJson(response);
+  }
+
+  Future<void> deleteMetricLog(String logId) async {
+    await _client.from('metric_logs').delete().eq('id', logId);
+  }
 }

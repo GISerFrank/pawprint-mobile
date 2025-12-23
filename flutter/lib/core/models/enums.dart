@@ -166,3 +166,85 @@ enum PetSpecies {
     );
   }
 }
+
+/// 宠物健康状态枚举
+enum HealthStatus {
+  healthy('Healthy'),
+  sick('Sick');
+
+  final String displayName;
+  const HealthStatus(this.displayName);
+
+  static HealthStatus fromString(String value) {
+    return HealthStatus.values.firstWhere(
+      (e) => e.displayName == value || e.name == value,
+      orElse: () => HealthStatus.healthy,
+    );
+  }
+}
+
+/// 生病类型枚举（未就医/已就医）
+enum SickType {
+  undiagnosed('Undiagnosed'),
+  diagnosed('Diagnosed');
+
+  final String displayName;
+  const SickType(this.displayName);
+
+  static SickType fromString(String value) {
+    return SickType.values.firstWhere(
+      (e) => e.displayName == value || e.name == value,
+      orElse: () => SickType.undiagnosed,
+    );
+  }
+}
+
+/// 症状程度枚举（每日追踪）
+enum SymptomLevel {
+  worse('Worse'),
+  same('Same'),
+  better('Better');
+
+  final String displayName;
+  const SymptomLevel(this.displayName);
+
+  static SymptomLevel fromString(String value) {
+    return SymptomLevel.values.firstWhere(
+      (e) => e.displayName == value || e.name == value,
+      orElse: () => SymptomLevel.same,
+    );
+  }
+
+  String get emoji {
+    switch (this) {
+      case SymptomLevel.worse:
+        return '😢';
+      case SymptomLevel.same:
+        return '😐';
+      case SymptomLevel.better:
+        return '😊';
+    }
+  }
+}
+
+/// 体重单位枚举
+enum WeightUnit {
+  kg('kg'),
+  lb('lb');
+
+  final String displayName;
+  const WeightUnit(this.displayName);
+
+  static WeightUnit fromString(String value) {
+    return WeightUnit.values.firstWhere(
+      (e) => e.displayName == value || e.name == value,
+      orElse: () => WeightUnit.kg,
+    );
+  }
+
+  /// kg 转换为 lb
+  static double kgToLb(double kg) => kg * 2.20462;
+
+  /// lb 转换为 kg
+  static double lbToKg(double lb) => lb / 2.20462;
+}

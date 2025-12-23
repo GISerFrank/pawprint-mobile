@@ -4,7 +4,32 @@ import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
 import '../router/app_router.dart';
 
-class MainShell extends StatelessWidget {
+/// 全局导航栏可见性控制
+class NavBarVisibility extends InheritedNotifier<ValueNotifier<bool>> {
+  const NavBarVisibility({
+    super.key,
+    required super.notifier,
+    required super.child,
+  });
+
+  static ValueNotifier<bool>? of(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<NavBarVisibility>()
+        ?.notifier;
+  }
+
+  /// 隐藏导航栏
+  static void hide(BuildContext context) {
+    of(context)?.value = false;
+  }
+
+  /// 显示导航栏
+  static void show(BuildContext context) {
+    of(context)?.value = true;
+  }
+}
+
+class MainShell extends StatefulWidget {
   final Widget child;
 
   const MainShell({
@@ -13,11 +38,41 @@ class MainShell extends StatelessWidget {
   });
 
   @override
+  State<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends State<MainShell> {
+  final _navBarVisible = ValueNotifier<bool>(true);
+
+  @override
+  void dispose() {
+    _navBarVisible.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: child,
-      bottomNavigationBar: const _BottomNavBar(),
-      extendBody: true,
+    return NavBarVisibility(
+      notifier: _navBarVisible,
+      child: Scaffold(
+        body: widget.child,
+        bottomNavigationBar: ValueListenableBuilder<bool>(
+          valueListenable: _navBarVisible,
+          builder: (context, isVisible, child) {
+            return AnimatedSlide(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              offset: isVisible ? Offset.zero : const Offset(0, 1),
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 200),
+                opacity: isVisible ? 1.0 : 0.0,
+                child: const _BottomNavBar(),
+              ),
+            );
+          },
+        ),
+        extendBody: true,
+      ),
     );
   }
 }
@@ -30,7 +85,7 @@ class _BottomNavBar extends StatelessWidget {
     switch (location) {
       case AppRoutes.home:
         return 0;
-      case AppRoutes.records:
+      case AppRoutes.petCare:
         return 1;
       case AppRoutes.analysis:
         return 2;
@@ -49,7 +104,7 @@ class _BottomNavBar extends StatelessWidget {
         context.go(AppRoutes.home);
         break;
       case 1:
-        context.go(AppRoutes.records);
+        context.go(AppRoutes.petCare);
         break;
       case 2:
         context.go(AppRoutes.analysis);
@@ -93,8 +148,8 @@ class _BottomNavBar extends StatelessWidget {
                   onTap: () => _onTap(context, 0),
                 ),
                 _NavItem(
-                  icon: Icons.timeline_rounded,
-                  label: 'Timeline',
+                  icon: Icons.favorite_rounded,
+                  label: 'Care',
                   isActive: currentIndex == 1,
                   onTap: () => _onTap(context, 1),
                 ),

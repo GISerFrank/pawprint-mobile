@@ -16,6 +16,12 @@ class LocalStorageService {
   static const String _keyForumPosts = 'local_forum_posts';
   static const String _keyForumComments = 'local_forum_comments';
   static const String _keyCollectibleCards = 'local_collectible_cards';
+  static const String _keyIllnessRecords = 'local_illness_records';
+  static const String _keyMedications = 'local_medications';
+  static const String _keyMedicationLogs = 'local_medication_logs';
+  static const String _keyDailySymptomLogs = 'local_daily_symptom_logs';
+  static const String _keyCareMetrics = 'local_care_metrics';
+  static const String _keyMetricLogs = 'local_metric_logs';
 
   late SharedPreferences _prefs;
   bool _initialized = false;
@@ -172,15 +178,29 @@ class LocalStorageService {
           ? PetSpecies.fromString(updates['species'])
           : oldPet.species,
       breed: updates['breed'] ?? oldPet.breed,
-      ageMonths: updates['age_months'] ?? oldPet.ageMonths,
+      birthday: updates['birthday'] != null
+          ? DateTime.parse(updates['birthday'])
+          : (updates.containsKey('birthday') ? null : oldPet.birthday),
+      gotchaDay: updates['gotcha_day'] != null
+          ? DateTime.parse(updates['gotcha_day'])
+          : (updates.containsKey('gotcha_day') ? null : oldPet.gotchaDay),
       gender: updates['gender'] != null
           ? PetGender.fromString(updates['gender'])
           : oldPet.gender,
       weightKg: updates['weight_kg']?.toDouble() ?? oldPet.weightKg,
+      weightUnit: updates['weight_unit'] != null
+          ? WeightUnit.fromString(updates['weight_unit'])
+          : oldPet.weightUnit,
       isNeutered: updates['is_neutered'] ?? oldPet.isNeutered,
       allergies: updates['allergies'] ?? oldPet.allergies,
       avatarUrl: updates['avatar_url'] ?? oldPet.avatarUrl,
       coins: updates['coins'] ?? oldPet.coins,
+      healthStatus: updates['health_status'] != null
+          ? HealthStatus.fromString(updates['health_status'])
+          : oldPet.healthStatus,
+      currentIllnessId: updates.containsKey('current_illness_id')
+          ? updates['current_illness_id']
+          : oldPet.currentIllnessId,
       createdAt: oldPet.createdAt,
       updatedAt: DateTime.now(),
       idCard: idCard,
@@ -762,6 +782,433 @@ class LocalStorageService {
     };
 
     return seedComments[postId] ?? [];
+  }
+
+  // ============================================
+  // 生病记录
+  // ============================================
+
+  Future<List<IllnessRecord>> getIllnessRecords(String petId) async {
+    await init();
+    final json = _prefs.getString(_keyIllnessRecords);
+    if (json == null) return [];
+    final List<dynamic> list = jsonDecode(json);
+    return list
+        .map((e) => IllnessRecord.fromJson(e))
+        .where((r) => r.petId == petId)
+        .toList()
+      ..sort((a, b) => b.startDate.compareTo(a.startDate));
+  }
+
+  Future<IllnessRecord?> getIllnessRecord(String illnessId) async {
+    await init();
+    final json = _prefs.getString(_keyIllnessRecords);
+    if (json == null) return null;
+    final List<dynamic> list = jsonDecode(json);
+    try {
+      final data = list.firstWhere((e) => e['id'] == illnessId);
+      return IllnessRecord.fromJson(data);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<IllnessRecord> createIllnessRecord(IllnessRecord record) async {
+    await init();
+    final newRecord = IllnessRecord(
+      id: _generateId(),
+      petId: record.petId,
+      startDate: record.startDate,
+      endDate: record.endDate,
+      sickType: record.sickType,
+      symptoms: record.symptoms,
+      diagnosis: record.diagnosis,
+      vetNotes: record.vetNotes,
+      followUpDate: record.followUpDate,
+      recoveryNote: record.recoveryNote,
+      createdAt: DateTime.now(),
+    );
+    final json = _prefs.getString(_keyIllnessRecords);
+    final List<dynamic> list = json != null ? jsonDecode(json) : [];
+    list.add(newRecord.toJson());
+    await _prefs.setString(_keyIllnessRecords, jsonEncode(list));
+    return newRecord;
+  }
+
+  Future<void> updateIllnessRecord(
+      String illnessId, Map<String, dynamic> updates) async {
+    await init();
+    final json = _prefs.getString(_keyIllnessRecords);
+    if (json == null) return;
+    final List<dynamic> list = jsonDecode(json);
+    final index = list.indexWhere((e) => e['id'] == illnessId);
+    if (index != -1) {
+      updates.forEach((key, value) {
+        list[index][key] = value;
+      });
+      await _prefs.setString(_keyIllnessRecords, jsonEncode(list));
+    }
+  }
+
+  // ============================================
+  // 用药记录
+  // ============================================
+
+  Future<List<Medication>> getMedications(String illnessId) async {
+    await init();
+    final json = _prefs.getString(_keyMedications);
+    if (json == null) return [];
+    final List<dynamic> list = jsonDecode(json);
+    return list
+        .map((e) => Medication.fromJson(e))
+        .where((m) => m.illnessId == illnessId)
+        .toList();
+  }
+
+  Future<Medication> createMedication(Medication medication) async {
+    await init();
+    final newMed = Medication(
+      id: _generateId(),
+      illnessId: medication.illnessId,
+      petId: medication.petId,
+      name: medication.name,
+      dosage: medication.dosage,
+      frequency: medication.frequency,
+      timesPerDay: medication.timesPerDay,
+      startDate: medication.startDate,
+      endDate: medication.endDate,
+      createdAt: DateTime.now(),
+    );
+    final json = _prefs.getString(_keyMedications);
+    final List<dynamic> list = json != null ? jsonDecode(json) : [];
+    list.add(newMed.toJson());
+    await _prefs.setString(_keyMedications, jsonEncode(list));
+    return newMed;
+  }
+
+  Future<void> deleteMedication(String medicationId) async {
+    await init();
+    final json = _prefs.getString(_keyMedications);
+    if (json == null) return;
+    final List<dynamic> list = jsonDecode(json);
+    list.removeWhere((e) => e['id'] == medicationId);
+    await _prefs.setString(_keyMedications, jsonEncode(list));
+  }
+
+  // ============================================
+  // 用药打卡记录
+  // ============================================
+
+  Future<List<MedicationLog>> getMedicationLogs(
+      String petId, DateTime start, DateTime end) async {
+    await init();
+    final json = _prefs.getString(_keyMedicationLogs);
+    if (json == null) return [];
+    final List<dynamic> list = jsonDecode(json);
+    return list
+        .map((e) => MedicationLog.fromJson(e))
+        .where((log) =>
+            log.petId == petId &&
+            log.scheduledTime.isAfter(start) &&
+            log.scheduledTime.isBefore(end))
+        .toList();
+  }
+
+  Future<MedicationLog> createMedicationLog(MedicationLog log) async {
+    await init();
+    final newLog = MedicationLog(
+      id: _generateId(),
+      medicationId: log.medicationId,
+      petId: log.petId,
+      scheduledTime: log.scheduledTime,
+      takenTime: log.takenTime,
+      isTaken: log.isTaken,
+      isSkipped: log.isSkipped,
+      note: log.note,
+      createdAt: DateTime.now(),
+    );
+    final json = _prefs.getString(_keyMedicationLogs);
+    final List<dynamic> list = json != null ? jsonDecode(json) : [];
+    list.add(newLog.toJson());
+    await _prefs.setString(_keyMedicationLogs, jsonEncode(list));
+    return newLog;
+  }
+
+  // ============================================
+  // 每日症状追踪
+  // ============================================
+
+  Future<List<DailySymptomLog>> getDailySymptomLogs(String illnessId) async {
+    await init();
+    final json = _prefs.getString(_keyDailySymptomLogs);
+    if (json == null) return [];
+    final List<dynamic> list = jsonDecode(json);
+    return list
+        .map((e) => DailySymptomLog.fromJson(e))
+        .where((log) => log.illnessId == illnessId)
+        .toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+  }
+
+  Future<DailySymptomLog> createDailySymptomLog(DailySymptomLog log) async {
+    await init();
+    // 检查今天是否已经记录过
+    final existing = await getDailySymptomLogs(log.illnessId);
+    final today = DateTime(log.date.year, log.date.month, log.date.day);
+    final existingToday = existing.where((l) {
+      final logDate = DateTime(l.date.year, l.date.month, l.date.day);
+      return logDate.isAtSameMomentAs(today);
+    }).toList();
+
+    if (existingToday.isNotEmpty) {
+      final json = _prefs.getString(_keyDailySymptomLogs);
+      final List<dynamic> list = json != null ? jsonDecode(json) : [];
+      final index = list.indexWhere((e) => e['id'] == existingToday.first.id);
+      if (index != -1) {
+        list[index]['level'] = log.level.displayName;
+        list[index]['note'] = log.note;
+        await _prefs.setString(_keyDailySymptomLogs, jsonEncode(list));
+        return log.copyWith(id: existingToday.first.id);
+      }
+    }
+
+    final newLog = DailySymptomLog(
+      id: _generateId(),
+      illnessId: log.illnessId,
+      petId: log.petId,
+      date: log.date,
+      level: log.level,
+      note: log.note,
+      createdAt: DateTime.now(),
+    );
+    final json = _prefs.getString(_keyDailySymptomLogs);
+    final List<dynamic> list = json != null ? jsonDecode(json) : [];
+    list.add(newLog.toJson());
+    await _prefs.setString(_keyDailySymptomLogs, jsonEncode(list));
+    return newLog;
+  }
+
+  // ============================================
+  // Diet - Feeding Logs
+  // ============================================
+
+  static const String _keyFeedingLogs = 'local_feeding_logs';
+  static const String _keyWaterLogs = 'local_water_logs';
+
+  Future<List<FeedingLog>> getFeedingLogs(
+      String petId, DateTime start, DateTime end) async {
+    await init();
+    final json = _prefs.getString(_keyFeedingLogs);
+    if (json == null) return [];
+    final List<dynamic> list = jsonDecode(json);
+    return list
+        .map((e) => FeedingLog.fromJson(e))
+        .where((r) =>
+            r.petId == petId &&
+            r.feedingTime.isAfter(start.subtract(const Duration(seconds: 1))) &&
+            r.feedingTime.isBefore(end))
+        .toList()
+      ..sort((a, b) => b.feedingTime.compareTo(a.feedingTime));
+  }
+
+  Future<FeedingLog> createFeedingLog(FeedingLog log) async {
+    await init();
+    final newLog = FeedingLog(
+      id: 'feeding_${DateTime.now().millisecondsSinceEpoch}',
+      petId: log.petId,
+      mealType: log.mealType,
+      foodType: log.foodType,
+      foodName: log.foodName,
+      amount: log.amount,
+      note: log.note,
+      feedingTime: log.feedingTime,
+      createdAt: DateTime.now(),
+    );
+    final json = _prefs.getString(_keyFeedingLogs);
+    final List<dynamic> list = json != null ? jsonDecode(json) : [];
+    list.add(newLog.toJson());
+    await _prefs.setString(_keyFeedingLogs, jsonEncode(list));
+    return newLog;
+  }
+
+  Future<void> deleteFeedingLog(String logId) async {
+    await init();
+    final json = _prefs.getString(_keyFeedingLogs);
+    if (json == null) return;
+    final List<dynamic> list = jsonDecode(json);
+    list.removeWhere((e) => e['id'] == logId);
+    await _prefs.setString(_keyFeedingLogs, jsonEncode(list));
+  }
+
+  // ============================================
+  // Diet - Water Logs
+  // ============================================
+
+  Future<List<WaterLog>> getWaterLogs(
+      String petId, DateTime start, DateTime end) async {
+    await init();
+    final json = _prefs.getString(_keyWaterLogs);
+    if (json == null) return [];
+    final List<dynamic> list = jsonDecode(json);
+    return list
+        .map((e) => WaterLog.fromJson(e))
+        .where((r) =>
+            r.petId == petId &&
+            r.logTime.isAfter(start.subtract(const Duration(seconds: 1))) &&
+            r.logTime.isBefore(end))
+        .toList()
+      ..sort((a, b) => b.logTime.compareTo(a.logTime));
+  }
+
+  Future<WaterLog> createWaterLog(WaterLog log) async {
+    await init();
+    final newLog = WaterLog(
+      id: 'water_${DateTime.now().millisecondsSinceEpoch}',
+      petId: log.petId,
+      amount: log.amount,
+      logTime: log.logTime,
+      createdAt: DateTime.now(),
+    );
+    final json = _prefs.getString(_keyWaterLogs);
+    final List<dynamic> list = json != null ? jsonDecode(json) : [];
+    list.add(newLog.toJson());
+    await _prefs.setString(_keyWaterLogs, jsonEncode(list));
+    return newLog;
+  }
+
+  // ============================================
+  // Activity Logs
+  // ============================================
+
+  static const String _keyActivityLogs = 'local_activity_logs';
+
+  Future<List<ActivityLog>> getActivityLogs(
+      String petId, DateTime start, DateTime end) async {
+    await init();
+    final json = _prefs.getString(_keyActivityLogs);
+    if (json == null) return [];
+    final List<dynamic> list = jsonDecode(json);
+    return list
+        .map((e) => ActivityLog.fromJson(e))
+        .where((r) =>
+            r.petId == petId &&
+            r.activityTime
+                .isAfter(start.subtract(const Duration(seconds: 1))) &&
+            r.activityTime.isBefore(end))
+        .toList()
+      ..sort((a, b) => b.activityTime.compareTo(a.activityTime));
+  }
+
+  Future<ActivityLog> createActivityLog(ActivityLog log) async {
+    await init();
+    final newLog = ActivityLog(
+      id: 'activity_${DateTime.now().millisecondsSinceEpoch}',
+      petId: log.petId,
+      activityType: log.activityType,
+      intensity: log.intensity,
+      durationMinutes: log.durationMinutes,
+      distanceKm: log.distanceKm,
+      note: log.note,
+      activityTime: log.activityTime,
+      createdAt: DateTime.now(),
+    );
+    final json = _prefs.getString(_keyActivityLogs);
+    final List<dynamic> list = json != null ? jsonDecode(json) : [];
+    list.add(newLog.toJson());
+    await _prefs.setString(_keyActivityLogs, jsonEncode(list));
+    return newLog;
+  }
+
+  Future<void> deleteActivityLog(String logId) async {
+    await init();
+    final json = _prefs.getString(_keyActivityLogs);
+    if (json == null) return;
+    final List<dynamic> list = jsonDecode(json);
+    list.removeWhere((e) => e['id'] == logId);
+    await _prefs.setString(_keyActivityLogs, jsonEncode(list));
+  }
+
+  // ============================================
+  // Care Metrics
+  // ============================================
+
+  Future<List<CareMetric>> getCareMetrics(String petId) async {
+    await init();
+    final json = _prefs.getString(_keyCareMetrics);
+    if (json == null) return [];
+    final List<dynamic> list = jsonDecode(json);
+    return list
+        .map((e) => CareMetric.fromJson(e))
+        .where((m) => m.petId == petId)
+        .toList();
+  }
+
+  Future<CareMetric> createCareMetric(CareMetric metric) async {
+    await init();
+    final json = _prefs.getString(_keyCareMetrics);
+    final List<dynamic> list = json != null ? jsonDecode(json) : [];
+    list.add(metric.toJson());
+    await _prefs.setString(_keyCareMetrics, jsonEncode(list));
+    return metric;
+  }
+
+  Future<void> updateCareMetric(
+      String metricId, Map<String, dynamic> updates) async {
+    await init();
+    final json = _prefs.getString(_keyCareMetrics);
+    if (json == null) return;
+    final List<dynamic> list = jsonDecode(json);
+    final index = list.indexWhere((e) => e['id'] == metricId);
+    if (index != -1) {
+      list[index] = {...list[index], ...updates};
+      await _prefs.setString(_keyCareMetrics, jsonEncode(list));
+    }
+  }
+
+  Future<void> deleteCareMetric(String metricId) async {
+    await init();
+    final json = _prefs.getString(_keyCareMetrics);
+    if (json == null) return;
+    final List<dynamic> list = jsonDecode(json);
+    list.removeWhere((e) => e['id'] == metricId);
+    await _prefs.setString(_keyCareMetrics, jsonEncode(list));
+  }
+
+  // ============================================
+  // Metric Logs
+  // ============================================
+
+  Future<List<MetricLog>> getMetricLogs(
+      String petId, DateTime start, DateTime end) async {
+    await init();
+    final json = _prefs.getString(_keyMetricLogs);
+    if (json == null) return [];
+    final List<dynamic> list = jsonDecode(json);
+    return list
+        .map((e) => MetricLog.fromJson(e))
+        .where((l) =>
+            l.petId == petId &&
+            l.loggedAt.isAfter(start) &&
+            l.loggedAt.isBefore(end))
+        .toList();
+  }
+
+  Future<MetricLog> createMetricLog(MetricLog log) async {
+    await init();
+    final json = _prefs.getString(_keyMetricLogs);
+    final List<dynamic> list = json != null ? jsonDecode(json) : [];
+    list.add(log.toJson());
+    await _prefs.setString(_keyMetricLogs, jsonEncode(list));
+    return log;
+  }
+
+  Future<void> deleteMetricLog(String logId) async {
+    await init();
+    final json = _prefs.getString(_keyMetricLogs);
+    if (json == null) return;
+    final List<dynamic> list = jsonDecode(json);
+    list.removeWhere((e) => e['id'] == logId);
+    await _prefs.setString(_keyMetricLogs, jsonEncode(list));
   }
 }
 
