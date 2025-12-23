@@ -49,6 +49,16 @@ class PawPrintApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       routerConfig: router,
+      // 全局点击空白区域收起键盘
+      builder: (context, child) {
+        return GestureDetector(
+          onTap: () {
+            // 点击空白区域收起键盘
+            FocusManager.instance.primaryFocus?.unfocus();
+          },
+          child: child,
+        );
+      },
     );
   }
 }

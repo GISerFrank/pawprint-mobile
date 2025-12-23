@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 import '../../core/theme/app_theme.dart';
+import 'draggable_bottom_sheet.dart';
 
 /// 图片选择结果
 class ImagePickResult {
@@ -65,10 +66,12 @@ class ImagePickerHelper {
     int maxWidth = 800,
     int quality = 70,
   }) async {
-    final source = await showModalBottomSheet<ImageSource>(
+    final source = await showDraggableBottomSheet<ImageSource>(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _ImageSourcePicker(),
+      initialChildSize: 0.3,
+      minChildSize: 0.2,
+      maxChildSize: 0.4,
+      child: const _ImageSourcePickerContent(),
     );
 
     if (source == null) return null;
@@ -101,63 +104,45 @@ class ImagePickerHelper {
   }
 }
 
-class _ImageSourcePicker extends StatelessWidget {
+class _ImageSourcePickerContent extends StatelessWidget {
+  const _ImageSourcePickerContent();
+  
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Choose Photo',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 16),
+        Row(
           children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.stone200,
-                borderRadius: BorderRadius.circular(2),
+            Expanded(
+              child: _SourceOption(
+                icon: Icons.camera_alt,
+                label: 'Camera',
+                color: AppColors.primary500,
+                onTap: () => Navigator.pop(context, ImageSource.camera),
               ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Choose Photo',
-              style: Theme.of(context).textTheme.titleMedium,
+            Expanded(
+              child: _SourceOption(
+                icon: Icons.photo_library,
+                label: 'Gallery',
+                color: AppColors.peach500,
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _SourceOption(
-                    icon: Icons.camera_alt,
-                    label: 'Camera',
-                    color: AppColors.primary500,
-                    onTap: () => Navigator.pop(context, ImageSource.camera),
-                  ),
-                ),
-                Expanded(
-                  child: _SourceOption(
-                    icon: Icons.photo_library,
-                    label: 'Gallery',
-                    color: AppColors.peach500,
-                    onTap: () => Navigator.pop(context, ImageSource.gallery),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            const SizedBox(height: 8),
           ],
         ),
-      ),
+        const SizedBox(height: 16),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ],
     );
   }
 }

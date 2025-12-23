@@ -25,7 +25,9 @@ class PrimaryGradientButton extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: onPressed == null ? [AppColors.stone300, AppColors.stone300] : colors,
+          colors: onPressed == null
+              ? [AppColors.stone300, AppColors.stone300]
+              : colors,
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: onPressed != null
@@ -153,31 +155,30 @@ class GenderToggle extends StatelessWidget {
         children: ['Male', 'Female'].map((gender) {
           final isSelected = selected == gender;
           return Expanded(
-            child: GestureDetector(
-              onTap: () => onChanged(gender),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: isSelected ? Colors.white : Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Text(
-                  gender,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: isSelected ? AppColors.primary600 : AppColors.stone400,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+            child: Material(
+              color: isSelected ? Colors.white : AppColors.stone50,
+              borderRadius: BorderRadius.circular(12),
+              clipBehavior: Clip.antiAlias,
+              elevation: isSelected ? 1 : 0,
+              shadowColor: Colors.black.withOpacity(0.1),
+              child: InkWell(
+                onTap: () => onChanged(gender),
+                splashColor: AppColors.primary100,
+                highlightColor: AppColors.primary50.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(12),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    gender,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: isSelected
+                          ? AppColors.primary600
+                          : AppColors.stone400,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ),
@@ -211,7 +212,8 @@ class AppSwitch extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: value ? AppColors.primary50.withOpacity(0.5) : Colors.transparent,
+          color:
+              value ? AppColors.primary50.withOpacity(0.5) : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: value ? AppColors.primary100 : Colors.transparent,
