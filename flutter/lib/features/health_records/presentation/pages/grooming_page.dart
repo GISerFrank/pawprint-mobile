@@ -141,9 +141,7 @@ class _GroomingContent extends ConsumerWidget {
       ),
       actions: [
         IconButton(
-          onPressed: () {
-            // TODO: Care calendar/reminders
-          },
+          onPressed: () => _showCareCalendar(context),
           icon: const Icon(Icons.calendar_month, color: Colors.white),
           tooltip: 'Care Calendar',
         ),
@@ -247,6 +245,16 @@ class _GroomingContent extends ConsumerWidget {
         category: GroomingPage.category,
         petId: pet.id,
       ),
+    );
+  }
+
+  void _showCareCalendar(BuildContext context) {
+    showDraggableBottomSheet(
+      context: context,
+      initialChildSize: 0.7,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      child: _CareCalendarSheetContent(pet: pet, theme: theme),
     );
   }
 }
@@ -473,6 +481,171 @@ class _UpcomingItem extends StatelessWidget {
             ),
           ),
           Icon(Icons.chevron_right, color: AppColors.stone300),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================
+// Care Calendar Sheet
+// ============================================
+
+class _CareCalendarSheetContent extends ConsumerWidget {
+  final Pet pet;
+  final PetTheme theme;
+
+  const _CareCalendarSheetContent({required this.pet, required this.theme});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final metricsAsync = ref.watch(careMetricsProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.calendar_month, color: GroomingPage.category.color, size: 28),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Care Calendar',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                ),
+                Text(
+                  'Upcoming care & reminders',
+                  style: TextStyle(color: AppColors.stone500, fontSize: 13),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+
+        // This Week
+        const Text('This Week', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        const SizedBox(height: 12),
+        
+        Expanded(
+          child: metricsAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, __) => const Center(child: Text('Failed to load')),
+            data: (metrics) {
+              final careMetrics = metrics.where((m) => m.category == CareCategory.care && m.isEnabled).toList();
+              
+              if (careMetrics.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.event_available, size: 48, color: AppColors.stone300),
+                      const SizedBox(height: 12),
+                      Text('No care tasks scheduled', style: TextStyle(color: AppColors.stone500)),
+                    ],
+                  ),
+                );
+              }
+
+              // Group by frequency
+              final weekly = careMetrics.where((m) => 
+                m.frequency == MetricFrequency.weekly || 
+                m.frequency == MetricFrequency.twiceWeekly
+              ).toList();
+              final monthly = careMetrics.where((m) => m.frequency == MetricFrequency.monthly).toList();
+
+              return ListView(
+                children: [
+                  ...weekly.map((m) => _CareCalendarItem(
+                    emoji: m.emoji ?? '📋',
+                    title: m.name,
+                    dueText: _getDueText(m.frequency),
+                    color: GroomingPage.category.color,
+                  )),
+                  if (monthly.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    const Text('This Month', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const SizedBox(height: 12),
+                    ...monthly.map((m) => _CareCalendarItem(
+                      emoji: m.emoji ?? '📋',
+                      title: m.name,
+                      dueText: _getDueText(m.frequency),
+                      color: AppColors.lavender500,
+                    )),
+                  ],
+                ],
+              );
+            },
+          ),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // Add reminder button (placeholder)
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              showAppNotification(context, message: 'Reminders coming soon!', type: NotificationType.info);
+            },
+            icon: const Icon(Icons.notifications_outlined),
+            label: const Text('Set Reminder'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _getDueText(MetricFrequency frequency) {
+    final now = DateTime.now();
+    return switch (frequency) {
+      MetricFrequency.weekly => 'Due Sunday',
+      MetricFrequency.twiceWeekly => now.weekday < 4 ? 'Due Thursday' : 'Due Monday',
+      MetricFrequency.monthly => 'Due ${now.month}/${DateTime(now.year, now.month + 1, 0).day}',
+      _ => 'As needed',
+    };
+  }
+}
+
+class _CareCalendarItem extends StatelessWidget {
+  final String emoji;
+  final String title;
+  final String dueText;
+  final Color color;
+
+  const _CareCalendarItem({
+    required this.emoji,
+    required this.title,
+    required this.dueText,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 24)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text(dueText, style: TextStyle(color: AppColors.stone500, fontSize: 12)),
+              ],
+            ),
+          ),
+          Icon(Icons.schedule, color: color, size: 20),
         ],
       ),
     );

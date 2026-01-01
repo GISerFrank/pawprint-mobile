@@ -6,9 +6,14 @@ import 'dart:math' as math;
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/pet_theme.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../core/config/app_config.dart';
 import '../../../../core/providers/providers.dart';
+import '../../../../core/providers/wellness_provider.dart';
 import '../../../../core/models/models.dart';
 import '../../../../shared/widgets/widgets.dart';
+import 'category_detail_page.dart';
+import '../widgets/wellness/sparkline.dart';
+import '../widgets/wellness/daily_check_card.dart';
 
 class PetCarePage extends ConsumerWidget {
   const PetCarePage({super.key});
@@ -31,9 +36,304 @@ class PetCarePage extends ConsumerWidget {
             if (pet == null) {
               return const Center(child: Text('No pet selected'));
             }
-            return _PetCareContent(pet: pet, theme: theme);
+            return _MetricsInitWrapper(
+              pet: pet,
+              theme: theme,
+              child: _PetCareContent(pet: pet, theme: theme),
+            );
           },
         ),
+      ),
+    );
+  }
+}
+
+/// 指标初始化包装器 - 处理懒加载 AI 生成的指标
+class _MetricsInitWrapper extends ConsumerStatefulWidget {
+  final Pet pet;
+  final PetTheme theme;
+  final Widget child;
+
+  const _MetricsInitWrapper({
+    required this.pet,
+    required this.theme,
+    required this.child,
+  });
+
+  @override
+  ConsumerState<_MetricsInitWrapper> createState() =>
+      _MetricsInitWrapperState();
+}
+
+class _MetricsInitWrapperState extends ConsumerState<_MetricsInitWrapper> {
+  bool _hasTriedInit = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndInitMetrics();
+    });
+  }
+
+  Future<void> _checkAndInitMetrics() async {
+    if (_hasTriedInit) return;
+
+    final needsInit = await ref.read(needsMetricsInitProvider.future);
+    if (!needsInit) return;
+
+    final initStatus = ref.read(metricsInitStatusProvider(widget.pet.id));
+    if (initStatus.state == MetricsInitState.initializing ||
+        initStatus.state == MetricsInitState.initialized) {
+      return;
+    }
+
+    _hasTriedInit = true;
+    await ref
+        .read(carePlanNotifierProvider.notifier)
+        .initializeMetricsWithAI(widget.pet);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final needsInitAsync = ref.watch(needsMetricsInitProvider);
+    final initStatus = ref.watch(metricsInitStatusProvider(widget.pet.id));
+
+    return needsInitAsync.when(
+      loading: () => const Center(child: AppLoadingIndicator()),
+      error: (e, _) => widget.child,
+      data: (needsInit) {
+        if (!needsInit) {
+          return widget.child;
+        }
+
+        if (initStatus.state == MetricsInitState.initializing) {
+          return _AIInitializingView(
+            petName: widget.pet.name,
+            theme: widget.theme,
+          );
+        }
+
+        if (initStatus.state == MetricsInitState.error ||
+            !AppConfig.isAIConfigured) {
+          return _NoMetricsView(
+            pet: widget.pet,
+            theme: widget.theme,
+            errorMessage: initStatus.errorMessage,
+          );
+        }
+
+        return widget.child;
+      },
+    );
+  }
+}
+
+/// AI 正在生成指标的加载视图
+class _AIInitializingView extends StatefulWidget {
+  final String petName;
+  final PetTheme theme;
+
+  const _AIInitializingView({
+    required this.petName,
+    required this.theme,
+  });
+
+  @override
+  State<_AIInitializingView> createState() => _AIInitializingViewState();
+}
+
+class _AIInitializingViewState extends State<_AIInitializingView>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            RotationTransition(
+              turns: _controller,
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: widget.theme.primaryLight,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.auto_awesome,
+                  size: 48,
+                  color: widget.theme.primary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
+            Text(
+              'Creating Your Care Plan',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Our AI is analyzing ${widget.petName}\'s profile to create personalized care metrics tailored specifically for them...',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.stone500,
+                  ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: 200,
+              child: LinearProgressIndicator(
+                color: widget.theme.primary,
+                backgroundColor: widget.theme.primaryLight,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'This may take a moment',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.stone400,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 没有指标时的空状态视图
+class _NoMetricsView extends ConsumerWidget {
+  final Pet pet;
+  final PetTheme theme;
+  final String? errorMessage;
+
+  const _NoMetricsView({
+    required this.pet,
+    required this.theme,
+    this.errorMessage,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasApiKey = AppConfig.isAIConfigured;
+
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppColors.stone100,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              hasApiKey ? Icons.error_outline : Icons.key_off,
+              size: 48,
+              color: AppColors.stone400,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            hasApiKey ? 'Unable to Generate Care Plan' : 'AI Not Configured',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            hasApiKey
+                ? 'We couldn\'t create personalized metrics for ${pet.name}. You can add metrics manually or retry.'
+                : 'Configure your Gemini API key in app settings to enable AI-powered personalized care plans.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.stone500,
+                ),
+          ),
+          if (errorMessage != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.peach100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                errorMessage!,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.peach600,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+          const SizedBox(height: 32),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (hasApiKey)
+                OutlinedButton.icon(
+                  onPressed: () {
+                    ref.read(metricsInitStatusProvider(pet.id).notifier).state =
+                        const MetricsInitStatus();
+                    ref.invalidate(needsMetricsInitProvider);
+                    ref
+                        .read(carePlanNotifierProvider.notifier)
+                        .initializeMetricsWithAI(pet);
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry'),
+                ),
+              if (hasApiKey) const SizedBox(width: 16),
+              ElevatedButton.icon(
+                onPressed: () => _showAddMetricSheet(context, ref),
+                icon: const Icon(Icons.add),
+                label: const Text('Add Manually'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.primary,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddMetricSheet(BuildContext context, WidgetRef ref) {
+    showDraggableBottomSheet(
+      context: context,
+      initialChildSize: 0.7,
+      minChildSize: 0.5,
+      maxChildSize: 0.9,
+      child: AddMetricSheetContent(
+        petId: pet.id,
+        category: CareCategory.wellness,
       ),
     );
   }
@@ -50,24 +350,6 @@ class _PetCareContent extends ConsumerStatefulWidget {
 }
 
 class _PetCareContentState extends ConsumerState<_PetCareContent> {
-  @override
-  void initState() {
-    super.initState();
-    // 检查是否需要初始化基础指标
-    _checkAndInitializeMetrics();
-  }
-
-  Future<void> _checkAndInitializeMetrics() async {
-    final metrics = await ref.read(careMetricsProvider.future);
-    if (metrics.isEmpty) {
-      // 首次使用，初始化基础指标
-      await ref.read(carePlanNotifierProvider.notifier).initializeBaseMetrics(
-        widget.pet.id,
-        widget.pet.species,
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final wellnessScoreAsync = ref.watch(wellnessScoreProvider);
@@ -97,14 +379,17 @@ class _PetCareContentState extends ConsumerState<_PetCareContent> {
             // Health Alert (if sick)
             illnessAsync.maybeWhen(
               data: (illness) {
-                if (illness == null || !widget.pet.isSick) return const SizedBox();
+                if (illness == null || !widget.pet.isSick)
+                  return const SizedBox();
                 return Column(
                   children: [
                     HealthAlertBanner(
                       petName: widget.pet.name,
                       illness: illness,
-                      onUpdateTap: () {},
-                      onVisitedVetTap: illness.sickType == SickType.undiagnosed ? () {} : null,
+                      onUpdateTap: () => _showSymptomTracker(context, illness),
+                      onVisitedVetTap: illness.sickType == SickType.undiagnosed
+                          ? () => _showVisitedVetSheet(context, illness)
+                          : null,
                     ),
                     const SizedBox(height: 16),
                   ],
@@ -125,13 +410,8 @@ class _PetCareContentState extends ConsumerState<_PetCareContent> {
             ),
             const SizedBox(height: 20),
 
-            // Today's Plan
-            _TodayPlanSection(
-              tasksAsync: todayTasksAsync,
-              progress: progress,
-              pet: widget.pet,
-              theme: widget.theme,
-            ),
+            // Quick Log Section (Pinned Metrics)
+            _QuickLogSection(pet: widget.pet, theme: widget.theme),
             const SizedBox(height: 20),
 
             // Category Cards
@@ -147,20 +427,40 @@ class _PetCareContentState extends ConsumerState<_PetCareContent> {
       ),
     );
   }
+
+  void _showSymptomTracker(BuildContext context, IllnessRecord illness) {
+    showDraggableBottomSheet(
+      context: context,
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      child: _DailySymptomTrackerContent(illness: illness),
+    );
+  }
+
+  void _showVisitedVetSheet(BuildContext context, IllnessRecord illness) {
+    showDraggableBottomSheet(
+      context: context,
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      child: _VisitedVetSheetContent(illness: illness),
+    );
+  }
 }
 
 // ============================================
 // Header
 // ============================================
 
-class _Header extends StatelessWidget {
+class _Header extends ConsumerWidget {
   final Pet pet;
   final PetTheme theme;
 
   const _Header({required this.pet, required this.theme});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Row(
       children: [
         PetAvatarButton(size: 48),
@@ -172,9 +472,9 @@ class _Header extends StatelessWidget {
               Text(
                 '${pet.name}\'s Care',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.primaryDark,
-                ),
+                      fontWeight: FontWeight.bold,
+                      color: theme.primaryDark,
+                    ),
               ),
               const SizedBox(height: 2),
               Text(
@@ -185,13 +485,21 @@ class _Header extends StatelessWidget {
           ),
         ),
         IconButton(
-          onPressed: () {
-            // TODO: Open settings/metrics management
-          },
+          onPressed: () => _showMetricsManagement(context, ref),
           icon: Icon(Icons.tune, color: theme.primary),
           tooltip: 'Manage Metrics',
         ),
       ],
+    );
+  }
+
+  void _showMetricsManagement(BuildContext context, WidgetRef ref) {
+    showDraggableBottomSheet(
+      context: context,
+      initialChildSize: 0.7,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      child: _MetricsManagementSheetContent(pet: pet, theme: theme),
     );
   }
 }
@@ -237,7 +545,7 @@ class _WellnessScoreCard extends StatelessWidget {
               // Score Circle
               _ScoreCircle(score: score.overall, theme: theme),
               const SizedBox(width: 20),
-              
+
               // Score Details
               Expanded(
                 child: Column(
@@ -263,7 +571,8 @@ class _WellnessScoreCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(12),
@@ -282,7 +591,8 @@ class _WellnessScoreCard extends StatelessWidget {
                     if (pet.isSick) ...[
                       const SizedBox(height: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
@@ -290,11 +600,14 @@ class _WellnessScoreCard extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.healing, size: 14, color: Colors.white.withOpacity(0.9)),
+                            Icon(Icons.healing,
+                                size: 14, color: Colors.white.withOpacity(0.9)),
                             const SizedBox(width: 4),
                             Text(
                               'Recovery Mode',
-                              style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 12),
+                              style: TextStyle(
+                                  color: Colors.white.withOpacity(0.9),
+                                  fontSize: 12),
                             ),
                           ],
                         ),
@@ -305,9 +618,9 @@ class _WellnessScoreCard extends StatelessWidget {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 20),
-          
+
           // Category Scores
           Row(
             children: [
@@ -336,7 +649,7 @@ class _WellnessScoreCard extends StatelessWidget {
               ),
             ],
           ),
-          
+
           // Improvements
           if (score.improvements.isNotEmpty) ...[
             const SizedBox(height: 16),
@@ -348,12 +661,14 @@ class _WellnessScoreCard extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.lightbulb_outline, color: Colors.white.withOpacity(0.9), size: 18),
+                  Icon(Icons.lightbulb_outline,
+                      color: Colors.white.withOpacity(0.9), size: 18),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       score.improvements.first,
-                      style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 13),
+                      style: TextStyle(
+                          color: Colors.white.withOpacity(0.9), fontSize: 13),
                     ),
                   ),
                 ],
@@ -515,7 +830,10 @@ class _WellnessScoreCardSkeleton extends StatelessWidget {
       height: 200,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [theme.primary.withOpacity(0.5), theme.primaryDark.withOpacity(0.5)],
+          colors: [
+            theme.primary.withOpacity(0.5),
+            theme.primaryDark.withOpacity(0.5)
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -529,7 +847,271 @@ class _WellnessScoreCardSkeleton extends StatelessWidget {
 }
 
 // ============================================
-// Today's Plan Section
+// Quick Log Section (Pinned Metrics)
+// ============================================
+
+class _QuickLogSection extends ConsumerWidget {
+  final Pet pet;
+  final PetTheme theme;
+
+  const _QuickLogSection({
+    required this.pet,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pinnedIdsAsync = ref.watch(pinnedMetricIdsProvider);
+
+    return pinnedIdsAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (pinnedIds) {
+        if (pinnedIds.isEmpty) {
+          return _EmptyQuickLogCard(theme: theme);
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: AppShadows.soft,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: theme.primaryLight,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.bolt, color: theme.primary, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Quick Log',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          '${pinnedIds.length} pinned metric${pinnedIds.length > 1 ? 's' : ''}',
+                          style: TextStyle(
+                              color: AppColors.stone500, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // Pinned Metrics Grid - 使用原始卡片
+              _PinnedMetricsCardGrid(
+                pinnedIds: pinnedIds,
+                pet: pet,
+                theme: theme,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// 空状态卡片 - 引导用户 pin 指标
+class _EmptyQuickLogCard extends StatelessWidget {
+  final PetTheme theme;
+
+  const _EmptyQuickLogCard({required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: AppShadows.soft,
+        border: Border.all(color: AppColors.stone100, width: 1),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.primaryLight.withOpacity(0.5),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.bolt_outlined, color: theme.primary, size: 32),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Quick Log',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Add metrics here for quick access.\nGo to Wellness and tap "Add To" on any metric.',
+            textAlign: TextAlign.center,
+            style:
+                TextStyle(color: AppColors.stone500, fontSize: 13, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pinned Metrics 卡片网格 - 直接复用 DailyCheckCard
+class _PinnedMetricsCardGrid extends StatelessWidget {
+  final List<String> pinnedIds;
+  final Pet pet;
+  final PetTheme theme;
+
+  const _PinnedMetricsCardGrid({
+    required this.pinnedIds,
+    required this.pet,
+    required this.theme,
+  });
+
+  // 内置 Daily Check 指标定义
+  static const _builtInMetrics = {
+    'energy': ('Energy', '活力', '⚡', 'Overall activity and energy level'),
+    'appetite': ('Appetite', '食欲', '🍽️', 'Interest in food and eating habits'),
+    'hydration': ('Hydration', '饮水', '💧', 'Water intake and hydration level'),
+    'stool': ('Stool', '排便', '💩', 'Stool quality and regularity'),
+    'coat': ('Coat', '毛发', '✨', 'Fur condition and shine'),
+    'eyes': ('Eyes', '眼睛', '👁️', 'Eye clarity and discharge'),
+    'mood': ('Mood', '情绪', '😊', 'Overall mood and behavior'),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    // 过滤出支持的 Daily Check 指标
+    final supportedIds =
+        pinnedIds.where((id) => _builtInMetrics.containsKey(id)).toList();
+
+    if (supportedIds.isEmpty) {
+      return Center(
+        child: Text(
+          'No supported metrics pinned',
+          style: TextStyle(color: AppColors.stone400, fontSize: 13),
+        ),
+      );
+    }
+
+    return GridView.count(
+      crossAxisCount: 2,
+      crossAxisSpacing: 10,
+      mainAxisSpacing: 10,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      childAspectRatio: 1.4,
+      children: supportedIds.map((id) {
+        final info = _builtInMetrics[id]!;
+        return _QuickLogCardWrapper(
+          child: DailyCheckCard(
+            petId: pet.id,
+            indicatorId: id,
+            name: info.$1,
+            nameZh: info.$2,
+            emoji: info.$3,
+            description: info.$4,
+            theme: theme,
+            showAddTo: false, // 在 Quick Log 中不显示 Add To
+          ),
+          indicatorId: id,
+          name: info.$1,
+        );
+      }).toList(),
+    );
+  }
+}
+
+/// Quick Log 卡片包装器 - 添加移除按钮
+class _QuickLogCardWrapper extends ConsumerWidget {
+  final Widget child;
+  final String indicatorId;
+  final String name;
+
+  const _QuickLogCardWrapper({
+    required this.child,
+    required this.indicatorId,
+    required this.name,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Stack(
+      children: [
+        child,
+        // 移除按钮
+        Positioned(
+          top: 2,
+          right: 2,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _confirmRemove(context, ref),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.9),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.close, size: 12, color: AppColors.stone400),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _confirmRemove(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove from Quick Log?'),
+        content: Text('Remove "$name" from Quick Log?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await ref
+                  .read(pinnedMetricsNotifierProvider.notifier)
+                  .unpinMetric(indicatorId);
+            },
+            child: Text('Remove', style: TextStyle(color: AppColors.red500)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================
+// Today's Plan Section (DEPRECATED - kept for reference)
 // ============================================
 
 class _TodayPlanSection extends ConsumerWidget {
@@ -575,7 +1157,10 @@ class _TodayPlanSection extends ConsumerWidget {
                   children: [
                     Text(
                       'Today\'s Plan',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     Text(
                       _getDateString(),
@@ -587,9 +1172,9 @@ class _TodayPlanSection extends ConsumerWidget {
               _ProgressBadge(progress: progress, theme: theme),
             ],
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Progress Bar
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
@@ -602,9 +1187,9 @@ class _TodayPlanSection extends ConsumerWidget {
               minHeight: 6,
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Tasks
           tasksAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
@@ -613,19 +1198,46 @@ class _TodayPlanSection extends ConsumerWidget {
               if (tasks.isEmpty) {
                 return _EmptyTasks(theme: theme);
               }
-              
+
               // Group by time
-              final morningTasks = tasks.where((t) => (t.scheduledTime ?? 0) < 12).toList();
-              final afternoonTasks = tasks.where((t) => (t.scheduledTime ?? 12) >= 12 && (t.scheduledTime ?? 0) < 17).toList();
-              final eveningTasks = tasks.where((t) => (t.scheduledTime ?? 17) >= 17).toList();
-              final anytimeTasks = tasks.where((t) => t.scheduledTime == null).toList();
-              
+              final morningTasks =
+                  tasks.where((t) => (t.scheduledTime ?? 0) < 12).toList();
+              final afternoonTasks = tasks
+                  .where((t) =>
+                      (t.scheduledTime ?? 12) >= 12 &&
+                      (t.scheduledTime ?? 0) < 17)
+                  .toList();
+              final eveningTasks =
+                  tasks.where((t) => (t.scheduledTime ?? 17) >= 17).toList();
+              final anytimeTasks =
+                  tasks.where((t) => t.scheduledTime == null).toList();
+
               return Column(
                 children: [
-                  if (morningTasks.isNotEmpty) _TaskGroup(label: '🌅 Morning', tasks: morningTasks, pet: pet, theme: theme),
-                  if (afternoonTasks.isNotEmpty) _TaskGroup(label: '☀️ Afternoon', tasks: afternoonTasks, pet: pet, theme: theme),
-                  if (eveningTasks.isNotEmpty) _TaskGroup(label: '🌙 Evening', tasks: eveningTasks, pet: pet, theme: theme),
-                  if (anytimeTasks.isNotEmpty) _TaskGroup(label: '📋 Anytime', tasks: anytimeTasks, pet: pet, theme: theme),
+                  if (morningTasks.isNotEmpty)
+                    _TaskGroup(
+                        label: '🌅 Morning',
+                        tasks: morningTasks,
+                        pet: pet,
+                        theme: theme),
+                  if (afternoonTasks.isNotEmpty)
+                    _TaskGroup(
+                        label: '☀️ Afternoon',
+                        tasks: afternoonTasks,
+                        pet: pet,
+                        theme: theme),
+                  if (eveningTasks.isNotEmpty)
+                    _TaskGroup(
+                        label: '🌙 Evening',
+                        tasks: eveningTasks,
+                        pet: pet,
+                        theme: theme),
+                  if (anytimeTasks.isNotEmpty)
+                    _TaskGroup(
+                        label: '📋 Anytime',
+                        tasks: anytimeTasks,
+                        pet: pet,
+                        theme: theme),
                 ],
               );
             },
@@ -637,8 +1249,29 @@ class _TodayPlanSection extends ConsumerWidget {
 
   String _getDateString() {
     final now = DateTime.now();
-    final weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final weekdays = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday'
+    ];
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
     return '${weekdays[now.weekday - 1]}, ${months[now.month - 1]} ${now.day}';
   }
 }
@@ -651,8 +1284,9 @@ class _ProgressBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isComplete = progress.completed == progress.total && progress.total > 0;
-    
+    final isComplete =
+        progress.completed == progress.total && progress.total > 0;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -743,7 +1377,9 @@ class _TaskItem extends ConsumerWidget {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: isCompleted ? AppColors.mint500 : metric.category.color.withOpacity(0.1),
+                  color: isCompleted
+                      ? AppColors.mint500
+                      : metric.category.color.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: isCompleted
@@ -756,7 +1392,7 @@ class _TaskItem extends ConsumerWidget {
                       ),
               ),
               const SizedBox(width: 12),
-              
+
               // Task info
               Expanded(
                 child: Column(
@@ -766,21 +1402,25 @@ class _TaskItem extends ConsumerWidget {
                       metric.name,
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        color: isCompleted ? AppColors.stone500 : AppColors.stone800,
-                        decoration: isCompleted ? TextDecoration.lineThrough : null,
+                        color: isCompleted
+                            ? AppColors.stone500
+                            : AppColors.stone800,
+                        decoration:
+                            isCompleted ? TextDecoration.lineThrough : null,
                       ),
                     ),
                     if (metric.description != null)
                       Text(
                         metric.description!,
-                        style: TextStyle(fontSize: 12, color: AppColors.stone400),
+                        style:
+                            TextStyle(fontSize: 12, color: AppColors.stone400),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                   ],
                 ),
               ),
-              
+
               // Category badge
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -806,9 +1446,13 @@ class _TaskItem extends ConsumerWidget {
 
     if (metric.valueType == MetricValueType.boolean) {
       // Quick complete
-      await ref.read(carePlanNotifierProvider.notifier).quickCompleteTask(metric, pet.id);
+      await ref
+          .read(carePlanNotifierProvider.notifier)
+          .quickCompleteTask(metric, pet.id);
       if (context.mounted) {
-        showAppNotification(context, message: '${metric.emoji ?? "✓"} ${metric.name} done!', type: NotificationType.success);
+        showAppNotification(context,
+            message: '${metric.emoji ?? "✓"} ${metric.name} done!',
+            type: NotificationType.success);
       }
     } else {
       // Show input dialog
@@ -818,7 +1462,7 @@ class _TaskItem extends ConsumerWidget {
 
   void _showInputDialog(BuildContext context, WidgetRef ref) {
     final metric = task.metric;
-    
+
     showDraggableBottomSheet(
       context: context,
       initialChildSize: 0.5,
@@ -887,10 +1531,12 @@ class _MetricInputSheetContent extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_MetricInputSheetContent> createState() => _MetricInputSheetContentState();
+  ConsumerState<_MetricInputSheetContent> createState() =>
+      _MetricInputSheetContentState();
 }
 
-class _MetricInputSheetContentState extends ConsumerState<_MetricInputSheetContent> {
+class _MetricInputSheetContentState
+    extends ConsumerState<_MetricInputSheetContent> {
   final _textController = TextEditingController();
   double _numberValue = 0;
   int _rangeValue = 3;
@@ -933,12 +1579,14 @@ class _MetricInputSheetContentState extends ConsumerState<_MetricInputSheetConte
                   children: [
                     Text(
                       widget.metric.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 18),
                     ),
                     if (widget.metric.description != null)
                       Text(
                         widget.metric.description!,
-                        style: TextStyle(color: AppColors.stone500, fontSize: 13),
+                        style:
+                            TextStyle(color: AppColors.stone500, fontSize: 13),
                       ),
                   ],
                 ),
@@ -946,12 +1594,12 @@ class _MetricInputSheetContentState extends ConsumerState<_MetricInputSheetConte
             ],
           ),
           const SizedBox(height: 24),
-          
+
           // Input based on type
           _buildInput(),
-          
+
           const SizedBox(height: 24),
-          
+
           // Save button
           SizedBox(
             width: double.infinity,
@@ -962,7 +1610,11 @@ class _MetricInputSheetContentState extends ConsumerState<_MetricInputSheetConte
                 backgroundColor: widget.theme.primary,
               ),
               child: _loading
-                  ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
                   : const Text('Log'),
             ),
           ),
@@ -993,7 +1645,8 @@ class _MetricInputSheetContentState extends ConsumerState<_MetricInputSheetConte
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             IconButton(
-              onPressed: () => setState(() => _numberValue = (_numberValue - 1).clamp(0, 999)),
+              onPressed: () => setState(
+                  () => _numberValue = (_numberValue - 1).clamp(0, 999)),
               icon: const Icon(Icons.remove_circle_outline),
               iconSize: 32,
             ),
@@ -1001,8 +1654,10 @@ class _MetricInputSheetContentState extends ConsumerState<_MetricInputSheetConte
             Column(
               children: [
                 Text(
-                  _numberValue.toStringAsFixed(widget.metric.unit == 'kg' ? 1 : 0),
-                  style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold),
+                  _numberValue
+                      .toStringAsFixed(widget.metric.unit == 'kg' ? 1 : 0),
+                  style: const TextStyle(
+                      fontSize: 48, fontWeight: FontWeight.bold),
                 ),
                 if (widget.metric.unit != null)
                   Text(
@@ -1013,7 +1668,8 @@ class _MetricInputSheetContentState extends ConsumerState<_MetricInputSheetConte
             ),
             const SizedBox(width: 20),
             IconButton(
-              onPressed: () => setState(() => _numberValue = (_numberValue + 1).clamp(0, 999)),
+              onPressed: () => setState(
+                  () => _numberValue = (_numberValue + 1).clamp(0, 999)),
               icon: const Icon(Icons.add_circle_outline),
               iconSize: 32,
             ),
@@ -1072,12 +1728,18 @@ class _MetricInputSheetContentState extends ConsumerState<_MetricInputSheetConte
 
   String _getRangeLabel(int value) {
     switch (value) {
-      case 1: return 'Poor';
-      case 2: return 'Fair';
-      case 3: return 'Good';
-      case 4: return 'Very Good';
-      case 5: return 'Excellent';
-      default: return '';
+      case 1:
+        return 'Poor';
+      case 2:
+        return 'Fair';
+      case 3:
+        return 'Good';
+      case 4:
+        return 'Very Good';
+      case 5:
+        return 'Excellent';
+      default:
+        return '';
     }
   }
 
@@ -1115,20 +1777,33 @@ class _MetricInputSheetContentState extends ConsumerState<_MetricInputSheetConte
     setState(() => _loading = true);
     try {
       await ref.read(carePlanNotifierProvider.notifier).logMetric(
-        metricId: widget.metric.id,
-        petId: widget.petId,
-        boolValue: widget.metric.valueType == MetricValueType.boolean ? true : null,
-        numberValue: widget.metric.valueType == MetricValueType.number ? _numberValue : null,
-        rangeValue: widget.metric.valueType == MetricValueType.range ? _rangeValue : null,
-        selectionValue: widget.metric.valueType == MetricValueType.selection ? _selectionValue : null,
-        textValue: widget.metric.valueType == MetricValueType.text ? _textController.text : null,
-      );
+            metricId: widget.metric.id,
+            petId: widget.petId,
+            boolValue: widget.metric.valueType == MetricValueType.boolean
+                ? true
+                : null,
+            numberValue: widget.metric.valueType == MetricValueType.number
+                ? _numberValue
+                : null,
+            rangeValue: widget.metric.valueType == MetricValueType.range
+                ? _rangeValue
+                : null,
+            selectionValue: widget.metric.valueType == MetricValueType.selection
+                ? _selectionValue
+                : null,
+            textValue: widget.metric.valueType == MetricValueType.text
+                ? _textController.text
+                : null,
+          );
       if (mounted) {
         Navigator.pop(context);
-        showAppNotification(context, message: '${widget.metric.emoji ?? "✓"} Logged!', type: NotificationType.success);
+        showAppNotification(context,
+            message: '${widget.metric.emoji ?? "✓"} Logged!',
+            type: NotificationType.success);
       }
     } catch (e) {
-      showAppNotification(context, message: 'Failed to log', type: NotificationType.error);
+      showAppNotification(context,
+          message: 'Failed to log', type: NotificationType.error);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -1158,7 +1833,10 @@ class _CategoryCardsSection extends ConsumerWidget {
             const SizedBox(width: 8),
             Text(
               'Categories',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.stone700),
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: AppColors.stone700),
             ),
           ],
         ),
@@ -1280,7 +1958,8 @@ class _AIInsightsSection extends StatelessWidget {
               gradient: theme.gradient,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.auto_awesome, color: Colors.white, size: 24),
+            child:
+                const Icon(Icons.auto_awesome, color: Colors.white, size: 24),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -1300,6 +1979,779 @@ class _AIInsightsSection extends StatelessWidget {
             ),
           ),
           Icon(Icons.chevron_right, color: theme.primary),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================
+// Metrics Management Sheet
+// ============================================
+
+class _MetricsManagementSheetContent extends ConsumerWidget {
+  final Pet pet;
+  final PetTheme theme;
+
+  const _MetricsManagementSheetContent({
+    required this.pet,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final metricsAsync = ref.watch(careMetricsProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Row(
+          children: [
+            Icon(Icons.tune, color: theme.primary, size: 28),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Manage Metrics',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: () => _showAddMetricSheet(context, ref),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Add'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Enable or disable metrics, delete custom ones',
+          style: TextStyle(color: AppColors.stone500, fontSize: 14),
+        ),
+        const SizedBox(height: 20),
+
+        // Metrics List by Category
+        Expanded(
+          child: metricsAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, __) =>
+                const Center(child: Text('Failed to load metrics')),
+            data: (metrics) {
+              if (metrics.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.inbox_outlined,
+                          size: 48, color: AppColors.stone300),
+                      const SizedBox(height: 12),
+                      Text('No metrics yet',
+                          style: TextStyle(color: AppColors.stone500)),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView(
+                children: CareCategory.values.map((category) {
+                  final categoryMetrics = metrics
+                      .where((m) => m.category == category)
+                      .toList()
+                    ..sort((a, b) => a.priority.compareTo(b.priority));
+
+                  if (categoryMetrics.isEmpty) return const SizedBox();
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          children: [
+                            Icon(category.icon,
+                                size: 18, color: category.color),
+                            const SizedBox(width: 8),
+                            Text(
+                              category.name,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: category.color,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              '${categoryMetrics.where((m) => m.isEnabled).length}/${categoryMetrics.length}',
+                              style: TextStyle(
+                                  color: AppColors.stone400, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ...categoryMetrics.map((metric) => _MetricManagementTile(
+                            metric: metric,
+                            onToggle: (enabled) {
+                              ref
+                                  .read(carePlanNotifierProvider.notifier)
+                                  .toggleMetric(metric.id, enabled);
+                            },
+                            onDelete:
+                                metric.source == MetricSource.userCustom &&
+                                        !metric.isPinned
+                                    ? () => _confirmDelete(context, ref, metric)
+                                    : null,
+                          )),
+                      const SizedBox(height: 8),
+                    ],
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showAddMetricSheet(BuildContext context, WidgetRef ref) {
+    Navigator.pop(context);
+    showDraggableBottomSheet(
+      context: context,
+      initialChildSize: 0.7,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      child: _AddMetricCategoryPicker(petId: pet.id),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, WidgetRef ref, CareMetric metric) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Metric?'),
+        content: Text('Are you sure you want to delete "${metric.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ref
+                  .read(carePlanNotifierProvider.notifier)
+                  .deleteMetric(metric.id);
+              showAppNotification(context,
+                  message: 'Metric deleted', type: NotificationType.info);
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricManagementTile extends StatelessWidget {
+  final CareMetric metric;
+  final ValueChanged<bool> onToggle;
+  final VoidCallback? onDelete;
+
+  const _MetricManagementTile({
+    required this.metric,
+    required this.onToggle,
+    this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: metric.isEnabled ? AppColors.stone50 : AppColors.stone100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: metric.isEnabled ? AppColors.stone200 : AppColors.stone300,
+        ),
+      ),
+      child: Row(
+        children: [
+          Text(metric.emoji ?? '📋', style: const TextStyle(fontSize: 20)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        metric.name,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: metric.isEnabled
+                              ? AppColors.stone800
+                              : AppColors.stone500,
+                          decoration: metric.isEnabled
+                              ? null
+                              : TextDecoration.lineThrough,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (metric.isPinned) ...[
+                      const SizedBox(width: 4),
+                      Icon(Icons.push_pin, size: 12, color: AppColors.stone400),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    _buildChip(metric.frequency.name),
+                    const SizedBox(width: 6),
+                    _buildSourceChip(metric.source),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (onDelete != null)
+            IconButton(
+              onPressed: onDelete,
+              icon: Icon(Icons.delete_outline,
+                  color: AppColors.stone400, size: 20),
+              tooltip: 'Delete',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            ),
+          Switch(
+            value: metric.isEnabled,
+            onChanged: metric.isPinned ? null : onToggle,
+            activeColor: metric.category.color,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.stone200,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child:
+          Text(text, style: TextStyle(fontSize: 10, color: AppColors.stone600)),
+    );
+  }
+
+  Widget _buildSourceChip(MetricSource source) {
+    final color = switch (source) {
+      MetricSource.aiBase => AppColors.primary500,
+      MetricSource.userCustom => AppColors.mint500,
+      MetricSource.aiDynamic => AppColors.peach500,
+      MetricSource.postIllness => AppColors.lavender500,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(source.name, style: TextStyle(fontSize: 10, color: color)),
+    );
+  }
+}
+
+class _AddMetricCategoryPicker extends StatelessWidget {
+  final String petId;
+
+  const _AddMetricCategoryPicker({required this.petId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Add New Metric',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Choose a category for your new metric',
+          style: TextStyle(color: AppColors.stone500, fontSize: 14),
+        ),
+        const SizedBox(height: 24),
+        ...CareCategory.values.map((category) => _CategoryPickerTile(
+              category: category,
+              onTap: () {
+                Navigator.pop(context);
+                showDraggableBottomSheet(
+                  context: context,
+                  initialChildSize: 0.7,
+                  minChildSize: 0.5,
+                  maxChildSize: 0.95,
+                  child: AddMetricSheetContent(
+                    category: category,
+                    petId: petId,
+                  ),
+                );
+              },
+            )),
+      ],
+    );
+  }
+}
+
+class _CategoryPickerTile extends StatelessWidget {
+  final CareCategory category;
+  final VoidCallback onTap;
+
+  const _CategoryPickerTile({required this.category, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: category.lightColor,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: category.color.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: category.color,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(category.icon, color: Colors.white, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        category.name,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: category.color,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        category.nameCN,
+                        style:
+                            TextStyle(color: AppColors.stone500, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: category.color),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================
+// Symptom Tracker Sheet
+// ============================================
+
+class _DailySymptomTrackerContent extends ConsumerStatefulWidget {
+  final IllnessRecord illness;
+
+  const _DailySymptomTrackerContent({required this.illness});
+
+  @override
+  ConsumerState<_DailySymptomTrackerContent> createState() =>
+      _DailySymptomTrackerContentState();
+}
+
+class _DailySymptomTrackerContentState
+    extends ConsumerState<_DailySymptomTrackerContent> {
+  int _feelingScore = 3;
+  final _notesController = TextEditingController();
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  SymptomLevel _scoreToLevel(int score) {
+    if (score <= 2) return SymptomLevel.worse;
+    if (score >= 4) return SymptomLevel.better;
+    return SymptomLevel.same;
+  }
+
+  Future<void> _save() async {
+    setState(() => _loading = true);
+    try {
+      final pet = await ref.read(currentPetProvider.future);
+      if (pet == null) throw Exception('No pet');
+
+      // Save symptom update
+      await ref.read(illnessNotifierProvider.notifier).logDailySymptom(
+            illnessId: widget.illness.id,
+            petId: pet.id,
+            level: _scoreToLevel(_feelingScore),
+            note:
+                _notesController.text.isNotEmpty ? _notesController.text : null,
+          );
+      if (mounted) {
+        Navigator.pop(context);
+        showAppNotification(context,
+            message: 'Symptom update saved!', type: NotificationType.success);
+      }
+    } catch (e) {
+      showAppNotification(context,
+          message: 'Failed to save', type: NotificationType.error);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return KeyboardAwareSheetContent(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.monitor_heart,
+                  color: AppColors.peach500, size: 28),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Daily Symptom Check',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'How is your pet feeling today?',
+            style: TextStyle(color: AppColors.stone500, fontSize: 14),
+          ),
+          const SizedBox(height: 24),
+
+          // Feeling Score
+          const Text('Overall Feeling',
+              style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: List.generate(5, (i) {
+              final score = i + 1;
+              final isSelected = _feelingScore == score;
+              return GestureDetector(
+                onTap: () => setState(() => _feelingScore = score),
+                child: Column(
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? _getScoreColor(score)
+                            : AppColors.stone100,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? _getScoreColor(score)
+                              : AppColors.stone200,
+                          width: isSelected ? 2 : 1,
+                        ),
+                      ),
+                      child: Text(
+                        _getScoreEmoji(score),
+                        style: const TextStyle(fontSize: 28),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _getScoreLabel(score),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isSelected
+                            ? _getScoreColor(score)
+                            : AppColors.stone500,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 24),
+
+          // Notes
+          const Text('Notes (optional)',
+              style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          AppTextField(
+            controller: _notesController,
+            hintText: 'Any observations or symptoms...',
+            maxLines: 3,
+          ),
+          const SizedBox(height: 24),
+
+          // Save Button
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _loading ? null : _save,
+              style:
+                  ElevatedButton.styleFrom(backgroundColor: AppColors.peach500),
+              child: _loading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Save Update'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getScoreEmoji(int score) {
+    return switch (score) {
+      1 => '😢',
+      2 => '😔',
+      3 => '😐',
+      4 => '🙂',
+      5 => '😊',
+      _ => '😐',
+    };
+  }
+
+  String _getScoreLabel(int score) {
+    return switch (score) {
+      1 => 'Very Bad',
+      2 => 'Bad',
+      3 => 'Okay',
+      4 => 'Good',
+      5 => 'Great',
+      _ => 'Okay',
+    };
+  }
+
+  Color _getScoreColor(int score) {
+    return switch (score) {
+      1 => Colors.red,
+      2 => AppColors.peach500,
+      3 => AppColors.stone500,
+      4 => AppColors.mint500,
+      5 => Colors.green,
+      _ => AppColors.stone500,
+    };
+  }
+}
+
+// ============================================
+// Visited Vet Sheet
+// ============================================
+
+class _VisitedVetSheetContent extends ConsumerStatefulWidget {
+  final IllnessRecord illness;
+
+  const _VisitedVetSheetContent({required this.illness});
+
+  @override
+  ConsumerState<_VisitedVetSheetContent> createState() =>
+      _VisitedVetSheetContentState();
+}
+
+class _VisitedVetSheetContentState
+    extends ConsumerState<_VisitedVetSheetContent> {
+  final _diagnosisController = TextEditingController();
+  final _treatmentController = TextEditingController();
+  DateTime? _followUpDate;
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _diagnosisController.dispose();
+    _treatmentController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_diagnosisController.text.trim().isEmpty) {
+      showAppNotification(context,
+          message: 'Please enter a diagnosis', type: NotificationType.error);
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      await ref.read(illnessNotifierProvider.notifier).updateIllness(
+            illnessId: widget.illness.id,
+            sickType: SickType.diagnosed,
+            diagnosis: _diagnosisController.text.trim(),
+            vetNotes: _treatmentController.text.trim().isNotEmpty
+                ? _treatmentController.text.trim()
+                : null,
+            followUpDate: _followUpDate,
+          );
+      if (mounted) {
+        Navigator.pop(context);
+        showAppNotification(context,
+            message: 'Vet visit recorded!', type: NotificationType.success);
+      }
+    } catch (e) {
+      showAppNotification(context,
+          message: 'Failed to save', type: NotificationType.error);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return KeyboardAwareSheetContent(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.local_hospital,
+                  color: AppColors.primary500, size: 28),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Vet Visit Details',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Record the diagnosis and treatment plan',
+            style: TextStyle(color: AppColors.stone500, fontSize: 14),
+          ),
+          const SizedBox(height: 24),
+
+          // Diagnosis
+          const Text('Diagnosis *',
+              style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          AppTextField(
+            controller: _diagnosisController,
+            hintText: 'What did the vet diagnose?',
+            maxLines: 2,
+          ),
+          const SizedBox(height: 16),
+
+          // Treatment
+          const Text('Treatment Plan',
+              style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          AppTextField(
+            controller: _treatmentController,
+            hintText: 'Medications, instructions, etc.',
+            maxLines: 3,
+          ),
+          const SizedBox(height: 16),
+
+          // Follow-up Date
+          const Text('Follow-up Date',
+              style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: () async {
+              final date = await showDatePicker(
+                context: context,
+                initialDate: DateTime.now().add(const Duration(days: 7)),
+                firstDate: DateTime.now(),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+              );
+              if (date != null) {
+                setState(() => _followUpDate = date);
+              }
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.stone50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.stone200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calendar_today,
+                      color: AppColors.stone400, size: 20),
+                  const SizedBox(width: 12),
+                  Text(
+                    _followUpDate != null
+                        ? '${_followUpDate!.month}/${_followUpDate!.day}/${_followUpDate!.year}'
+                        : 'Select date (optional)',
+                    style: TextStyle(
+                      color: _followUpDate != null
+                          ? AppColors.stone800
+                          : AppColors.stone400,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (_followUpDate != null)
+                    GestureDetector(
+                      onTap: () => setState(() => _followUpDate = null),
+                      child: Icon(Icons.close,
+                          color: AppColors.stone400, size: 20),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Save Button
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _loading ? null : _save,
+              child: _loading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Save Vet Visit'),
+            ),
+          ),
         ],
       ),
     );

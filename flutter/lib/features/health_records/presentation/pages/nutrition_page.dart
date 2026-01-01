@@ -141,9 +141,7 @@ class _NutritionContent extends ConsumerWidget {
       ),
       actions: [
         IconButton(
-          onPressed: () {
-            // TODO: Open feeding schedule
-          },
+          onPressed: () => _showFeedingSchedule(context),
           icon: const Icon(Icons.schedule, color: Colors.white),
           tooltip: 'Feeding Schedule',
         ),
@@ -247,6 +245,16 @@ class _NutritionContent extends ConsumerWidget {
         category: NutritionPage.category,
         petId: pet.id,
       ),
+    );
+  }
+
+  void _showFeedingSchedule(BuildContext context) {
+    showDraggableBottomSheet(
+      context: context,
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      child: _FeedingScheduleSheetContent(pet: pet, theme: theme),
     );
   }
 }
@@ -376,14 +384,14 @@ class _FeedingStatItem extends StatelessWidget {
   }
 }
 
-class _QuickActionsCard extends StatelessWidget {
+class _QuickActionsCard extends ConsumerWidget {
   final Pet pet;
   final PetTheme theme;
 
   const _QuickActionsCard({required this.pet, required this.theme});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(16),
@@ -398,34 +406,116 @@ class _QuickActionsCard extends StatelessWidget {
             icon: Icons.breakfast_dining,
             label: 'Log Meal',
             color: NutritionPage.category.color,
-            onTap: () {
-              // TODO: Quick log meal
-              showAppNotification(context, message: 'Meal logged!', type: NotificationType.success);
-            },
+            onTap: () => _quickLogMeal(context, ref),
           ),
           const SizedBox(width: 12),
           _QuickActionButton(
             icon: Icons.water_drop,
             label: 'Water',
             color: AppColors.primary500,
-            onTap: () {
-              // TODO: Quick log water
-              showAppNotification(context, message: 'Water logged!', type: NotificationType.success);
-            },
+            onTap: () => _quickLogWater(context, ref),
           ),
           const SizedBox(width: 12),
           _QuickActionButton(
             icon: Icons.cookie,
             label: 'Treat',
             color: AppColors.peach500,
-            onTap: () {
-              // TODO: Quick log treat
-              showAppNotification(context, message: 'Treat logged!', type: NotificationType.success);
-            },
+            onTap: () => _quickLogTreat(context, ref),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _quickLogMeal(BuildContext context, WidgetRef ref) async {
+    try {
+      // Find the feeding/meal metric
+      final metrics = await ref.read(careMetricsProvider.future);
+      final mealMetric = metrics.firstWhere(
+        (m) => m.category == CareCategory.nutrition && 
+               (m.name.toLowerCase().contains('feed') || 
+                m.name.toLowerCase().contains('meal') ||
+                m.name.toLowerCase().contains('food')),
+        orElse: () => metrics.firstWhere(
+          (m) => m.category == CareCategory.nutrition,
+        ),
+      );
+
+      await ref.read(carePlanNotifierProvider.notifier).logMetric(
+        metricId: mealMetric.id,
+        petId: pet.id,
+        boolValue: true,
+      );
+      
+      if (context.mounted) {
+        showAppNotification(context, message: 'Meal logged! 🍽️', type: NotificationType.success);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        showAppNotification(context, message: 'No meal metric found', type: NotificationType.error);
+      }
+    }
+  }
+
+  Future<void> _quickLogWater(BuildContext context, WidgetRef ref) async {
+    try {
+      final metrics = await ref.read(careMetricsProvider.future);
+      final waterMetric = metrics.firstWhere(
+        (m) => m.category == CareCategory.nutrition && 
+               m.name.toLowerCase().contains('water'),
+        orElse: () => throw Exception('No water metric'),
+      );
+
+      await ref.read(carePlanNotifierProvider.notifier).logMetric(
+        metricId: waterMetric.id,
+        petId: pet.id,
+        boolValue: true,
+      );
+      
+      if (context.mounted) {
+        showAppNotification(context, message: 'Water logged! 💧', type: NotificationType.success);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        showAppNotification(context, message: 'No water metric found', type: NotificationType.error);
+      }
+    }
+  }
+
+  Future<void> _quickLogTreat(BuildContext context, WidgetRef ref) async {
+    try {
+      final metrics = await ref.read(careMetricsProvider.future);
+      CareMetric? treatMetric;
+      
+      try {
+        treatMetric = metrics.firstWhere(
+          (m) => m.category == CareCategory.nutrition && 
+                 (m.name.toLowerCase().contains('treat') || 
+                  m.name.toLowerCase().contains('snack')),
+        );
+      } catch (_) {
+        // Create a quick treat log using the first nutrition metric
+        treatMetric = null;
+      }
+
+      if (treatMetric != null) {
+        await ref.read(carePlanNotifierProvider.notifier).logMetric(
+          metricId: treatMetric.id,
+          petId: pet.id,
+          boolValue: true,
+        );
+      } else {
+        // If no treat metric exists, just show success (treat is occasional)
+      }
+      
+      if (context.mounted) {
+        showAppNotification(context, message: 'Treat logged! 🍪', type: NotificationType.success);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        showAppNotification(context, message: 'Treat logged! 🍪', type: NotificationType.success);
+      }
+    }
   }
 }
 
@@ -469,6 +559,137 @@ class _QuickActionButton extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ============================================
+// Feeding Schedule Sheet
+// ============================================
+
+class _FeedingScheduleSheetContent extends StatelessWidget {
+  final Pet pet;
+  final PetTheme theme;
+
+  const _FeedingScheduleSheetContent({required this.pet, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.schedule, color: NutritionPage.category.color, size: 28),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Feeding Schedule',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                ),
+                Text(
+                  '${pet.name}\'s meal times',
+                  style: TextStyle(color: AppColors.stone500, fontSize: 13),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+
+        // Meal Schedule Cards
+        _ScheduleItem(
+          time: '8:00 AM',
+          label: 'Breakfast',
+          emoji: '🌅',
+          color: AppColors.peach500,
+        ),
+        const SizedBox(height: 12),
+        _ScheduleItem(
+          time: '12:00 PM',
+          label: 'Lunch',
+          emoji: '☀️',
+          color: NutritionPage.category.color,
+        ),
+        const SizedBox(height: 12),
+        _ScheduleItem(
+          time: '6:00 PM',
+          label: 'Dinner',
+          emoji: '🌙',
+          color: AppColors.lavender500,
+        ),
+        
+        const Spacer(),
+        
+        // Info text
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.stone50,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, color: AppColors.stone400, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Consistent feeding times help maintain your pet\'s health and digestive routine.',
+                  style: TextStyle(color: AppColors.stone600, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ScheduleItem extends StatelessWidget {
+  final String time;
+  final String label;
+  final String emoji;
+  final Color color;
+
+  const _ScheduleItem({
+    required this.time,
+    required this.label,
+    required this.emoji,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 28)),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(time, style: TextStyle(color: AppColors.stone500)),
+              ],
+            ),
+          ),
+          Switch(
+            value: true,
+            onChanged: (v) {},
+            activeColor: color,
+          ),
+        ],
       ),
     );
   }

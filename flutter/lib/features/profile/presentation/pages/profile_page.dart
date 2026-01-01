@@ -465,7 +465,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
           // 提示信息
           const SizedBox(height: 12),
-          if (AppConfig.geminiApiKey.isEmpty)
+          if (!AppConfig.isAIConfigured)
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -479,7 +479,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Add Gemini API key for AI-generated cartoon avatars',
+                      'Add AI API key for AI-generated cartoon avatars',
                       style: TextStyle(color: AppColors.peach600, fontSize: 12),
                     ),
                   ),

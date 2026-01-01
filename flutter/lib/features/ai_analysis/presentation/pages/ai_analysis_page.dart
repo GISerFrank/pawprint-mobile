@@ -135,7 +135,7 @@ class _AIAnalysisPageState extends ConsumerState<AIAnalysisPage> {
   }
 
   Widget _buildHeader(BuildContext context) {
-    final hasApiKey = AppConfig.geminiApiKey.isNotEmpty;
+    final hasApiKey = AppConfig.isAIConfigured;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

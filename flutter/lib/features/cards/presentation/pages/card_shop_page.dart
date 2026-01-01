@@ -275,25 +275,25 @@ class _ShopView extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppConfig.geminiApiKey.isNotEmpty ? AppColors.mint100 : AppColors.primary50, 
+                      color: AppConfig.isAIConfigured ? AppColors.mint100 : AppColors.primary50, 
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       children: [
                         Icon(
-                          AppConfig.geminiApiKey.isNotEmpty ? Icons.check_circle : Icons.info_outline, 
-                          color: AppConfig.geminiApiKey.isNotEmpty ? AppColors.mint500 : AppColors.primary500, 
+                          AppConfig.isAIConfigured ? Icons.check_circle : Icons.info_outline, 
+                          color: AppConfig.isAIConfigured ? AppColors.mint500 : AppColors.primary500, 
                           size: 20,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            AppConfig.geminiApiKey.isNotEmpty 
+                            AppConfig.isAIConfigured 
                               ? 'AI-powered card generation enabled! Each pack creates unique artwork.'
-                              : 'Demo mode: Cards use your avatar. Add Gemini API key for AI-generated artwork.',
+                              : 'Demo mode: Cards use your avatar. Add AI API key for AI-generated artwork.',
                             style: TextStyle(
                               fontSize: 11, 
-                              color: AppConfig.geminiApiKey.isNotEmpty ? AppColors.mint500 : AppColors.primary600,
+                              color: AppConfig.isAIConfigured ? AppColors.mint500 : AppColors.primary600,
                             ),
                           ),
                         ),

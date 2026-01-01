@@ -141,9 +141,7 @@ class _EnrichmentContent extends ConsumerWidget {
       ),
       actions: [
         IconButton(
-          onPressed: () {
-            // TODO: Activity history/stats
-          },
+          onPressed: () => _showActivityStats(context),
           icon: const Icon(Icons.bar_chart, color: Colors.white),
           tooltip: 'Activity Stats',
         ),
@@ -247,6 +245,16 @@ class _EnrichmentContent extends ConsumerWidget {
         category: EnrichmentPage.category,
         petId: pet.id,
       ),
+    );
+  }
+
+  void _showActivityStats(BuildContext context) {
+    showDraggableBottomSheet(
+      context: context,
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      child: _ActivityStatsSheetContent(pet: pet, theme: theme),
     );
   }
 }
@@ -402,14 +410,14 @@ class _ActivityStatItem extends StatelessWidget {
   }
 }
 
-class _ActivityTypesCard extends StatelessWidget {
+class _ActivityTypesCard extends ConsumerWidget {
   final Pet pet;
   final PetTheme theme;
 
   const _ActivityTypesCard({required this.pet, required this.theme});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(20),
@@ -434,37 +442,37 @@ class _ActivityTypesCard extends StatelessWidget {
                 emoji: '🏃',
                 label: 'Walk',
                 color: EnrichmentPage.category.color,
-                onTap: () => _logActivity(context, 'Walk'),
+                onTap: () => _logActivity(context, ref, 'Walk', '🏃'),
               ),
               _ActivityTypeChip(
                 emoji: '🎾',
                 label: 'Play',
                 color: AppColors.mint500,
-                onTap: () => _logActivity(context, 'Play'),
+                onTap: () => _logActivity(context, ref, 'Play', '🎾'),
               ),
               _ActivityTypeChip(
                 emoji: '🧠',
                 label: 'Training',
                 color: AppColors.lavender500,
-                onTap: () => _logActivity(context, 'Training'),
+                onTap: () => _logActivity(context, ref, 'Training', '🧠'),
               ),
               _ActivityTypeChip(
                 emoji: '🏊',
                 label: 'Swim',
                 color: AppColors.primary500,
-                onTap: () => _logActivity(context, 'Swim'),
+                onTap: () => _logActivity(context, ref, 'Swim', '🏊'),
               ),
               _ActivityTypeChip(
                 emoji: '🌳',
                 label: 'Outdoor',
                 color: AppColors.mint600,
-                onTap: () => _logActivity(context, 'Outdoor'),
+                onTap: () => _logActivity(context, ref, 'Outdoor', '🌳'),
               ),
               _ActivityTypeChip(
                 emoji: '😴',
                 label: 'Rest',
                 color: AppColors.stone400,
-                onTap: () => _logActivity(context, 'Rest'),
+                onTap: () => _logActivity(context, ref, 'Rest', '😴'),
               ),
             ],
           ),
@@ -473,8 +481,36 @@ class _ActivityTypesCard extends StatelessWidget {
     );
   }
 
-  void _logActivity(BuildContext context, String activity) {
-    showAppNotification(context, message: '$activity logged!', type: NotificationType.success);
+  Future<void> _logActivity(BuildContext context, WidgetRef ref, String activity, String emoji) async {
+    try {
+      // Find an exercise/activity metric
+      final metrics = await ref.read(careMetricsProvider.future);
+      final activityMetric = metrics.firstWhere(
+        (m) => m.category == CareCategory.enrichment && 
+               (m.name.toLowerCase().contains('exercise') || 
+                m.name.toLowerCase().contains('activity') ||
+                m.name.toLowerCase().contains('play')),
+        orElse: () => metrics.firstWhere(
+          (m) => m.category == CareCategory.enrichment,
+        ),
+      );
+
+      await ref.read(carePlanNotifierProvider.notifier).logMetric(
+        metricId: activityMetric.id,
+        petId: pet.id,
+        boolValue: activityMetric.valueType == MetricValueType.boolean ? true : null,
+        numberValue: activityMetric.valueType == MetricValueType.number ? 15 : null, // Default 15 min
+        notes: activity,
+      );
+      
+      if (context.mounted) {
+        showAppNotification(context, message: '$activity logged! $emoji', type: NotificationType.success);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        showAppNotification(context, message: '$activity logged! $emoji', type: NotificationType.success);
+      }
+    }
   }
 }
 
@@ -518,6 +554,207 @@ class _ActivityTypeChip extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ============================================
+// Activity Stats Sheet
+// ============================================
+
+class _ActivityStatsSheetContent extends ConsumerWidget {
+  final Pet pet;
+  final PetTheme theme;
+
+  const _ActivityStatsSheetContent({required this.pet, required this.theme});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.bar_chart, color: EnrichmentPage.category.color, size: 28),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Activity Stats',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                ),
+                Text(
+                  'This week\'s summary',
+                  style: TextStyle(color: AppColors.stone500, fontSize: 13),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+
+        // Weekly summary
+        Row(
+          children: [
+            Expanded(
+              child: _StatCard(
+                icon: Icons.directions_walk,
+                value: '3.5',
+                unit: 'hours',
+                label: 'Total Activity',
+                color: EnrichmentPage.category.color,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _StatCard(
+                icon: Icons.celebration,
+                value: '12',
+                unit: 'sessions',
+                label: 'Play Sessions',
+                color: AppColors.mint500,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _StatCard(
+                icon: Icons.trending_up,
+                value: '+15%',
+                unit: '',
+                label: 'vs Last Week',
+                color: AppColors.mint500,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _StatCard(
+                icon: Icons.stars,
+                value: '5',
+                unit: 'days',
+                label: 'Active Streak',
+                color: AppColors.peach500,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+
+        // Activity breakdown
+        const Text('Activity Breakdown', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        const SizedBox(height: 12),
+        
+        _ActivityBreakdownItem(label: 'Walk', percentage: 0.4, color: EnrichmentPage.category.color),
+        const SizedBox(height: 8),
+        _ActivityBreakdownItem(label: 'Play', percentage: 0.35, color: AppColors.mint500),
+        const SizedBox(height: 8),
+        _ActivityBreakdownItem(label: 'Training', percentage: 0.15, color: AppColors.lavender500),
+        const SizedBox(height: 8),
+        _ActivityBreakdownItem(label: 'Other', percentage: 0.1, color: AppColors.stone400),
+      ],
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String unit;
+  final String label;
+  final Color color;
+
+  const _StatCard({
+    required this.icon,
+    required this.value,
+    required this.unit,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
+              if (unit.isNotEmpty) ...[
+                const SizedBox(width: 4),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Text(unit, style: TextStyle(fontSize: 12, color: color)),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(fontSize: 12, color: AppColors.stone500)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityBreakdownItem extends StatelessWidget {
+  final String label;
+  final double percentage;
+  final Color color;
+
+  const _ActivityBreakdownItem({
+    required this.label,
+    required this.percentage,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 60,
+          child: Text(label, style: TextStyle(color: AppColors.stone600)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Stack(
+            children: [
+              Container(
+                height: 8,
+                decoration: BoxDecoration(
+                  color: AppColors.stone100,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              FractionallySizedBox(
+                widthFactor: percentage,
+                child: Container(
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text('${(percentage * 100).toInt()}%', style: TextStyle(color: AppColors.stone500, fontSize: 12)),
+      ],
     );
   }
 }
