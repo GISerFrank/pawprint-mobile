@@ -1,15 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'core/config/app_config.dart';
+import 'core/services/geo_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 加载 .env 文件（如果存在）
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (e) {
+    debugPrint('Warning: .env file not found, using default values');
+  }
+
+  // 检测地理位置，设置 AI 提供商
+  await _initAIProvider();
 
   // 设置状态栏样式
   SystemChrome.setSystemUIOverlayStyle(
@@ -35,6 +47,22 @@ void main() async {
       child: PawPrintApp(),
     ),
   );
+}
+
+/// 初始化 AI 提供商
+/// 根据地理位置自动选择 Qwen（中国）或 Gemini（其他地区）
+Future<void> _initAIProvider() async {
+  try {
+    final geoService = GeoService();
+    final isChina = await geoService.isInChina();
+    AppConfig.setAIProviderByRegion(isChina);
+    debugPrint(
+        'AI Provider set to: ${AppConfig.aiProviderName} (isChina: $isChina)');
+  } catch (e) {
+    debugPrint('Failed to detect region, using default AI provider: $e');
+    // 默认使用 Gemini
+    AppConfig.setAIProvider(AIProvider.gemini);
+  }
 }
 
 class PawPrintApp extends ConsumerWidget {
