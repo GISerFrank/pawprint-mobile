@@ -1,7 +1,15 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+/// AI 服务提供商
+enum AIProvider {
+  gemini,
+  qwen,
+}
+
 /// 应用配置
 ///
-/// 注意：在实际项目中，这些值应该通过环境变量或 --dart-define 注入
-/// 不要将真实的密钥提交到版本控制
+/// API Key 等敏感信息从 .env 文件读取
+/// .env 文件应添加到 .gitignore 中，不要提交到版本控制
 class AppConfig {
   AppConfig._();
 
@@ -14,23 +22,58 @@ class AppConfig {
   static const bool useLocalMode = true;
 
   // ============================================
-  // Gemini API 配置（本地模式直接调用）
+  // AI 服务配置
   // ============================================
 
-  // TODO: 替换为你的 Gemini API Key
-  // 获取地址: https://aistudio.google.com/app/apikey
-  static const String geminiApiKey = String.fromEnvironment(
-    'AIzaSyC_smAhD8IJYT3A1741Tcktr3XR2fNPCpI',
-    defaultValue: 'AIzaSyC_smAhD8IJYT3A1741Tcktr3XR2fNPCpI', // 在这里填入你的 API Key 用于测试
-  );
+  /// 当前 AI 提供商（由 GeoService 在启动时设置）
+  static AIProvider _currentProvider = AIProvider.gemini;
+
+  /// 获取当前 AI 提供商
+  static AIProvider get aiProvider => _currentProvider;
+
+  /// 设置 AI 提供商（由 GeoService 调用）
+  static void setAIProvider(AIProvider provider) {
+    _currentProvider = provider;
+  }
+
+  /// 根据是否在中国设置 AI 提供商
+  static void setAIProviderByRegion(bool isChina) {
+    _currentProvider = isChina ? AIProvider.qwen : AIProvider.gemini;
+  }
+
+  /// Gemini API Key - 从 .env 文件读取
+  /// 获取地址: https://aistudio.google.com/app/apikey
+  static String get geminiApiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
+
+  /// Qwen API Key - 从 .env 文件读取
+  /// 获取地址: https://dashscope.console.aliyun.com/
+  static String get qwenApiKey => dotenv.env['QWEN_API_KEY'] ?? '';
+
+  /// 获取当前配置的 AI API Key
+  static String get currentAIApiKey {
+    return aiProvider == AIProvider.qwen ? qwenApiKey : geminiApiKey;
+  }
+
+  /// 检查 AI 服务是否已配置
+  /// 本地模式：检查对应的 API Key
+  /// 生产模式：始终返回 true（使用 Edge Function）
+  static bool get isAIConfigured {
+    if (!useLocalMode) return true;
+    return currentAIApiKey.isNotEmpty;
+  }
+
+  /// 获取当前 AI 提供商名称
+  static String get aiProviderName {
+    if (!useLocalMode) return 'Gemini (Edge)';
+    return aiProvider == AIProvider.qwen ? 'Qwen' : 'Gemini';
+  }
 
   // ============================================
-  // Supabase 配置
+  // Supabase 配置（从 .env 文件读取）
   // ============================================
 
-  // TODO: 替换为你的 Supabase 项目配置
-  static const String supabaseUrl = 'https://your-project-ref.supabase.co';
-  static const String supabaseAnonKey = 'your-anon-key';
+  static String get supabaseUrl => dotenv.env['SUPABASE_URL'] ?? 'https://your-project-ref.supabase.co';
+  static String get supabaseAnonKey => dotenv.env['SUPABASE_ANON_KEY'] ?? '';
 
   // Edge Function URL
   static String get geminiApiUrl => '$supabaseUrl/functions/v1/gemini-api';

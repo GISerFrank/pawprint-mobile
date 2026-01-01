@@ -1143,6 +1143,19 @@ class LocalStorageService {
         .toList();
   }
 
+  Future<CareMetric?> getCareMetric(String metricId) async {
+    await init();
+    final json = _prefs.getString(_keyCareMetrics);
+    if (json == null) return null;
+    final List<dynamic> list = jsonDecode(json);
+    try {
+      final found = list.firstWhere((e) => e['id'] == metricId);
+      return CareMetric.fromJson(found);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<CareMetric> createCareMetric(CareMetric metric) async {
     await init();
     final json = _prefs.getString(_keyCareMetrics);
@@ -1209,6 +1222,53 @@ class LocalStorageService {
     final List<dynamic> list = jsonDecode(json);
     list.removeWhere((e) => e['id'] == logId);
     await _prefs.setString(_keyMetricLogs, jsonEncode(list));
+  }
+
+  // ============================================
+  // Pinned Metrics (Quick Log on Care Page)
+  // ============================================
+
+  static const String _keyPinnedMetrics = 'local_pinned_metrics';
+
+  /// 获取用户 pin 的指标 ID 列表
+  Future<List<String>> getPinnedMetricIds(String petId) async {
+    await init();
+    final json = _prefs.getString(_keyPinnedMetrics);
+    if (json == null) return [];
+    final Map<String, dynamic> data = jsonDecode(json);
+    final List<dynamic> ids = data[petId] ?? [];
+    return ids.cast<String>();
+  }
+
+  /// 添加 pinned metric
+  Future<void> addPinnedMetric(String petId, String metricId) async {
+    await init();
+    final json = _prefs.getString(_keyPinnedMetrics);
+    final Map<String, dynamic> data = json != null ? jsonDecode(json) : {};
+    final List<dynamic> ids = data[petId] ?? [];
+    if (!ids.contains(metricId)) {
+      ids.add(metricId);
+      data[petId] = ids;
+      await _prefs.setString(_keyPinnedMetrics, jsonEncode(data));
+    }
+  }
+
+  /// 移除 pinned metric
+  Future<void> removePinnedMetric(String petId, String metricId) async {
+    await init();
+    final json = _prefs.getString(_keyPinnedMetrics);
+    if (json == null) return;
+    final Map<String, dynamic> data = jsonDecode(json);
+    final List<dynamic> ids = data[petId] ?? [];
+    ids.remove(metricId);
+    data[petId] = ids;
+    await _prefs.setString(_keyPinnedMetrics, jsonEncode(data));
+  }
+
+  /// 检查指标是否已 pin
+  Future<bool> isMetricPinned(String petId, String metricId) async {
+    final ids = await getPinnedMetricIds(petId);
+    return ids.contains(metricId);
   }
 }
 

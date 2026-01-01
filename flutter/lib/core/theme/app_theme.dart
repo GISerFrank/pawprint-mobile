@@ -56,7 +56,44 @@ class AppColors {
   static const Color sky600 = Color(0xFF0284C7);
   static const Color sky900 = Color(0xFF0C4A6E);
 
+  static const Color red50 = Color.fromARGB(255, 254, 242, 242);
+  static const Color red100 = Color.fromARGB(255, 254, 202, 202);
+  static const Color red200 = Color.fromARGB(255, 252, 165, 165);
+  static const Color red400 = Color.fromARGB(255, 248, 113, 113);
+  static const Color red500 = Color.fromARGB(255, 239, 68, 68);
+  static const Color red600 = Color.fromARGB(255, 220, 38, 38);
+
+  static const Color blue50 = Color(0xFFE0E7FF);
+  static const Color blue100 = Color(0xFFC7D2FE);
+  static const Color blue200 = Color(0xFFA5B4FC);
+  static const Color blue500 = Color(0xFF6366F1);
+  static const Color blue600 = Color(0xFF4338CA);
+  static const Color blue700 = Color(0xFF3730A3);
+
+  static const Color green50 = Color.fromARGB(255, 236, 253, 245);
+  static const Color green100 = Color.fromARGB(255, 209, 250, 229);
+  static const Color green200 = Color.fromARGB(255, 167, 243, 208);
+  static const Color green300 = Color.fromARGB(255, 110, 231, 183);
+  static const Color green400 = Color.fromARGB(255, 74, 222, 128);
+  static const Color green500 = Color.fromARGB(255, 34, 197, 94);
+  static const Color green600 = Color.fromARGB(255, 22, 163, 74);
+  static const Color green700 = Color.fromARGB(255, 21, 128, 61);
+
+  static const Color purple50 = Color(0xFFF5F3FF);
+  static const Color purple100 = Color(0xFFEDE9FE);
+  static const Color purple500 = Color(0xFF8B5CF6);
+  static const Color purple600 = Color(0xFF7C3AED);
+
+  static const Color amber50 = Color.fromARGB(255, 255, 251, 235);
+  static const Color amber400 = Color.fromARGB(255, 253, 186, 116);
+  static const Color amber500 = Color.fromARGB(255, 245, 180, 1);
+  static const Color amber600 = Color.fromARGB(255, 202, 138, 4);
+
+  static const Color orange500 = Color.fromARGB(255, 249, 115, 22);
+
   static const Color lavender500 = Color.fromARGB(255, 159, 140, 255);
+
+  static const Color lime500 = Color.fromARGB(255, 132, 204, 22);
 
   // Semantic Colors
   static const Color success = mint500;

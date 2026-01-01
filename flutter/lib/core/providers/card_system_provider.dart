@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_config.dart';
 import '../models/models.dart';
 import '../services/services.dart';
+import '../services/ai/ai_service_provider.dart';
 import 'service_providers.dart';
 import 'pet_provider.dart';
 import 'auth_provider.dart';
@@ -63,7 +65,8 @@ const availablePacks = [
 ];
 
 /// 当前宠物的卡牌收藏
-final collectibleCardsProvider = FutureProvider<List<CollectibleCard>>((ref) async {
+final collectibleCardsProvider =
+    FutureProvider<List<CollectibleCard>>((ref) async {
   final petId = ref.watch(selectedPetIdProvider);
   if (petId == null) return [];
 
@@ -77,14 +80,15 @@ final collectibleCardsProvider = FutureProvider<List<CollectibleCard>>((ref) asy
 });
 
 /// 按主题分组的卡牌
-final cardsByThemeProvider = FutureProvider<Map<PackTheme, List<CollectibleCard>>>((ref) async {
+final cardsByThemeProvider =
+    FutureProvider<Map<PackTheme, List<CollectibleCard>>>((ref) async {
   final cards = await ref.watch(collectibleCardsProvider.future);
-  
+
   final grouped = <PackTheme, List<CollectibleCard>>{};
   for (final theme in PackTheme.values) {
     grouped[theme] = cards.where((c) => c.theme == theme).toList();
   }
-  
+
   return grouped;
 });
 
@@ -159,18 +163,18 @@ class CardSystemNotifier extends StateNotifier<CardPackState> {
       if (AppConfig.useLocalMode) {
         // 本地模式
         final localStorage = _ref.read(localStorageServiceProvider);
-        
+
         // 扣除金币
         await localStorage.updatePetCoins(petId, currentCoins - pack.price);
         _ref.invalidate(currentPetProvider);
 
         // 生成卡牌
         GeneratedCardData? generatedCard;
-        
-        if (AppConfig.geminiApiKey.isNotEmpty) {
-          // 有 API Key，使用真实 AI 生成
-          final gemini = _ref.read(geminiDirectServiceProvider);
-          generatedCard = await gemini.generateCollectibleCard(
+        final aiService = _ref.read(aiServiceProvider);
+
+        if (aiService != null) {
+          // 有 AI 服务，使用 AI 生成
+          generatedCard = await aiService.generateCollectibleCard(
             imageBase64: avatarBase64,
             theme: pack.theme,
             species: species,
@@ -191,23 +195,28 @@ class CardSystemNotifier extends StateNotifier<CardPackState> {
             obtainedAt: DateTime.now(),
           ));
         } else {
-          // 无 API Key 或生成失败，使用 Mock 卡牌
-          savedCard = await _createMockCard(localStorage, petId, pack, avatarBase64, species);
+          // 无 AI 服务或生成失败，使用 Mock 卡牌
+          savedCard = await _createMockCard(
+              localStorage, petId, pack, avatarBase64, species);
         }
 
         _ref.invalidate(collectibleCardsProvider);
       } else {
         // Supabase 模式
-        final gemini = _ref.read(geminiServiceProvider);
+        final aiService = _ref.read(aiServiceProvider);
         final db = _ref.read(databaseServiceProvider);
         final storage = _ref.read(storageServiceProvider);
+
+        if (aiService == null) {
+          throw Exception('AI service not available');
+        }
 
         // 扣除金币
         await db.updateCoins(petId, currentCoins - pack.price);
         _ref.invalidate(currentPetProvider);
 
         // 生成卡牌
-        final generatedCard = await gemini.generateCollectibleCard(
+        final generatedCard = await aiService.generateCollectibleCard(
           imageBase64: avatarBase64,
           theme: pack.theme,
           species: species,
@@ -227,11 +236,24 @@ class CardSystemNotifier extends StateNotifier<CardPackState> {
 
         // 上传卡牌图片
         final cardId = DateTime.now().millisecondsSinceEpoch.toString();
-        final imageUrl = await storage.uploadCollectibleCardImage(
-          petId: petId,
-          cardId: cardId,
-          fileBytes: generatedCard.imageData,
-        );
+        // generatedCard.imageBase64 可能是 URL 或 base64，需要处理
+        String imageUrl;
+        if (generatedCard.imageBase64.startsWith('http')) {
+          // 已经是 URL，直接使用
+          imageUrl = generatedCard.imageBase64;
+        } else {
+          // 是 base64，需要上传
+          // 先解码 base64 为 bytes
+          final base64Data = generatedCard.imageBase64.contains(',')
+              ? generatedCard.imageBase64.split(',').last
+              : generatedCard.imageBase64;
+          final bytes = base64Decode(base64Data);
+          imageUrl = await storage.uploadCollectibleCardImage(
+            petId: petId,
+            cardId: cardId,
+            fileBytes: bytes,
+          );
+        }
 
         // 保存到数据库
         savedCard = await db.createCollectibleCard(CollectibleCard(
@@ -285,17 +307,46 @@ class CardSystemNotifier extends StateNotifier<CardPackState> {
     String species,
   ) async {
     // 随机稀有度
-    final rarities = [Rarity.common, Rarity.common, Rarity.common, Rarity.rare, Rarity.rare, Rarity.epic, Rarity.legendary];
+    final rarities = [
+      Rarity.common,
+      Rarity.common,
+      Rarity.common,
+      Rarity.rare,
+      Rarity.rare,
+      Rarity.epic,
+      Rarity.legendary
+    ];
     final rarity = rarities[DateTime.now().millisecond % rarities.length];
 
     // 生成名字
     final names = {
-      PackTheme.daily: ['Cozy Nap', 'Sunny Day', 'Snack Time', 'Morning Stretch'],
-      PackTheme.profile: ['Noble Guardian', 'Majestic One', 'The Champion', 'Royal Portrait'],
-      PackTheme.fun: ['Party Animal', 'Silly Moment', 'Playful Spirit', 'Goofy Time'],
-      PackTheme.sticker: ['Pop Star', 'Sticker Bomb', 'Neon Vibes', 'Retro Cool'],
+      PackTheme.daily: [
+        'Cozy Nap',
+        'Sunny Day',
+        'Snack Time',
+        'Morning Stretch'
+      ],
+      PackTheme.profile: [
+        'Noble Guardian',
+        'Majestic One',
+        'The Champion',
+        'Royal Portrait'
+      ],
+      PackTheme.fun: [
+        'Party Animal',
+        'Silly Moment',
+        'Playful Spirit',
+        'Goofy Time'
+      ],
+      PackTheme.sticker: [
+        'Pop Star',
+        'Sticker Bomb',
+        'Neon Vibes',
+        'Retro Cool'
+      ],
     };
-    final name = names[pack.theme]![DateTime.now().second % names[pack.theme]!.length];
+    final name =
+        names[pack.theme]![DateTime.now().second % names[pack.theme]!.length];
 
     // 生成描述
     final descriptions = [
@@ -304,7 +355,8 @@ class CardSystemNotifier extends StateNotifier<CardPackState> {
       'Pure joy in one image.',
       'This one is special!',
     ];
-    final description = descriptions[DateTime.now().millisecond % descriptions.length];
+    final description =
+        descriptions[DateTime.now().millisecond % descriptions.length];
 
     return await localStorage.createCollectibleCard(CollectibleCard(
       id: '',
@@ -314,7 +366,10 @@ class CardSystemNotifier extends StateNotifier<CardPackState> {
       description: description,
       rarity: rarity,
       theme: pack.theme,
-      tags: [pack.theme.displayName.toLowerCase(), rarity.displayName.toLowerCase()],
+      tags: [
+        pack.theme.displayName.toLowerCase(),
+        rarity.displayName.toLowerCase()
+      ],
       obtainedAt: DateTime.now(),
     ));
   }
@@ -338,6 +393,7 @@ class CardSystemNotifier extends StateNotifier<CardPackState> {
 }
 
 /// 卡牌系统 Provider
-final cardSystemNotifierProvider = StateNotifierProvider<CardSystemNotifier, CardPackState>((ref) {
+final cardSystemNotifierProvider =
+    StateNotifierProvider<CardSystemNotifier, CardPackState>((ref) {
   return CardSystemNotifier(ref);
 });

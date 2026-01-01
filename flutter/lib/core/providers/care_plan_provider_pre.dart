@@ -1,47 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 import '../config/app_config.dart';
-import '../services/ai/ai_service_provider.dart';
-import '../services/ai/ai_types.dart';
 import 'service_providers.dart';
 import 'pet_provider.dart';
-
-/// ============================================
-/// Metric Initialization State
-/// ============================================
-
-enum MetricsInitState {
-  notInitialized,
-  initializing,
-  initialized,
-  error,
-}
-
-class MetricsInitStatus {
-  final MetricsInitState state;
-  final String? errorMessage;
-
-  const MetricsInitStatus({
-    this.state = MetricsInitState.notInitialized,
-    this.errorMessage,
-  });
-
-  MetricsInitStatus copyWith({
-    MetricsInitState? state,
-    String? errorMessage,
-  }) {
-    return MetricsInitStatus(
-      state: state ?? this.state,
-      errorMessage: errorMessage,
-    );
-  }
-}
-
-/// 指标初始化状态 Provider
-final metricsInitStatusProvider =
-    StateProvider.family<MetricsInitStatus, String>((ref, petId) {
-  return const MetricsInitStatus();
-});
 
 /// ============================================
 /// Metric Providers
@@ -52,25 +13,13 @@ final careMetricsProvider = FutureProvider<List<CareMetric>>((ref) async {
   final pet = await ref.watch(currentPetProvider.future);
   if (pet == null) return [];
 
-  List<CareMetric> metrics;
   if (AppConfig.useLocalMode) {
     final localStorage = ref.watch(localStorageProvider);
-    metrics = await localStorage.getCareMetrics(pet.id);
+    return localStorage.getCareMetrics(pet.id);
   } else {
     final db = ref.watch(databaseServiceProvider);
-    metrics = await db.getCareMetrics(pet.id);
+    return db.getCareMetrics(pet.id);
   }
-
-  return metrics;
-});
-
-/// 检查当前宠物是否需要初始化指标
-final needsMetricsInitProvider = FutureProvider<bool>((ref) async {
-  final pet = await ref.watch(currentPetProvider.future);
-  if (pet == null) return false;
-
-  final metrics = await ref.watch(careMetricsProvider.future);
-  return metrics.isEmpty;
 });
 
 /// 按分类分组的指标
@@ -302,172 +251,7 @@ class CarePlanNotifier extends StateNotifier<AsyncValue<void>> {
 
   CarePlanNotifier(this._ref) : super(const AsyncValue.data(null));
 
-  /// 使用 AI 生成个性化指标
-  Future<bool> initializeMetricsWithAI(Pet pet) async {
-    // 检查 AI 服务是否配置
-    final aiService = _ref.read(aiServiceProvider);
-    if (aiService == null) {
-      print('AI service not configured, skipping AI metrics generation');
-      return false;
-    }
-
-    // 更新初始化状态
-    _ref.read(metricsInitStatusProvider(pet.id).notifier).state =
-        const MetricsInitStatus(state: MetricsInitState.initializing);
-
-    state = const AsyncValue.loading();
-
-    try {
-      if (!aiService.isAvailable) {
-        throw Exception('AI service not available');
-      }
-
-      // 构建宠物信息
-      final petInfo = PetInfoForMetrics(
-        petId: pet.id,
-        name: pet.name,
-        species: pet.species.displayName,
-        breed: pet.breed,
-        ageMonths: pet.birthday != null ? pet.ageMonths : null,
-        weightKg: pet.weightKg,
-        gender: pet.gender.displayName,
-        isNeutered: pet.isNeutered,
-        allergies: pet.allergies?.isNotEmpty == true
-            ? pet.allergies!.split(',').map((e) => e.trim()).toList()
-            : null,
-      );
-
-      // 调用 AI 生成指标
-      final generatedMetrics = await aiService.generateInitialCareMetrics(
-        petInfo: petInfo,
-      );
-
-      if (generatedMetrics.isEmpty) {
-        throw Exception('AI returned empty metrics list');
-      }
-
-      // 转换为 CareMetric 对象并保存
-      final now = DateTime.now();
-      final careMetrics = <CareMetric>[];
-
-      for (int i = 0; i < generatedMetrics.length; i++) {
-        final gen = generatedMetrics[i];
-        final metric = CareMetric(
-          id: '${pet.id}_ai_${now.millisecondsSinceEpoch}_$i',
-          petId: pet.id,
-          category: _parseCategory(gen.category),
-          source: MetricSource.aiBase,
-          name: gen.name,
-          description: gen.description,
-          emoji: gen.emoji,
-          frequency: _parseFrequency(gen.frequency),
-          valueType: _parseValueType(gen.valueType),
-          unit: gen.unit,
-          targetValue: gen.targetValue,
-          minValue: gen.minValue,
-          maxValue: gen.maxValue,
-          options: gen.options,
-          isEnabled: true,
-          isPinned: gen.isPinned,
-          priority: gen.priority,
-          aiReason: gen.aiReason,
-          createdAt: now,
-          updatedAt: now,
-        );
-        careMetrics.add(metric);
-      }
-
-      // 保存到存储
-      if (AppConfig.useLocalMode) {
-        final localStorage = _ref.read(localStorageProvider);
-        for (final metric in careMetrics) {
-          await localStorage.createCareMetric(metric);
-        }
-      } else {
-        final db = _ref.read(databaseServiceProvider);
-        for (final metric in careMetrics) {
-          await db.createCareMetric(metric);
-        }
-      }
-
-      // 更新状态
-      _ref.read(metricsInitStatusProvider(pet.id).notifier).state =
-          const MetricsInitStatus(state: MetricsInitState.initialized);
-      _ref.invalidate(careMetricsProvider);
-      _ref.invalidate(needsMetricsInitProvider);
-      state = const AsyncValue.data(null);
-
-      return true;
-    } catch (e, st) {
-      print('Error initializing metrics with AI: $e');
-      _ref.read(metricsInitStatusProvider(pet.id).notifier).state =
-          MetricsInitStatus(
-        state: MetricsInitState.error,
-        errorMessage: e.toString(),
-      );
-      state = AsyncValue.error(e, st);
-      return false;
-    }
-  }
-
-  /// 解析分类
-  CareCategory _parseCategory(String category) {
-    switch (category.toLowerCase()) {
-      case 'wellness':
-        return CareCategory.wellness;
-      case 'nutrition':
-        return CareCategory.nutrition;
-      case 'enrichment':
-        return CareCategory.enrichment;
-      case 'care':
-        return CareCategory.care;
-      default:
-        return CareCategory.wellness;
-    }
-  }
-
-  /// 解析频率
-  MetricFrequency _parseFrequency(String frequency) {
-    switch (frequency.toLowerCase()) {
-      case 'daily':
-        return MetricFrequency.daily;
-      case 'twicedaily':
-        return MetricFrequency.twiceDaily;
-      case 'threetimesdaily':
-        return MetricFrequency.threeTimesDaily;
-      case 'weekly':
-        return MetricFrequency.weekly;
-      case 'twiceweekly':
-        return MetricFrequency.twiceWeekly;
-      case 'monthly':
-        return MetricFrequency.monthly;
-      case 'asneeded':
-        return MetricFrequency.asNeeded;
-      default:
-        return MetricFrequency.daily;
-    }
-  }
-
-  /// 解析值类型
-  MetricValueType _parseValueType(String valueType) {
-    switch (valueType.toLowerCase()) {
-      case 'boolean':
-        return MetricValueType.boolean;
-      case 'number':
-        return MetricValueType.number;
-      case 'range':
-        return MetricValueType.range;
-      case 'selection':
-        return MetricValueType.selection;
-      case 'text':
-        return MetricValueType.text;
-      default:
-        return MetricValueType.boolean;
-    }
-  }
-
-  /// 【已废弃】初始化新宠物的基础指标（保留兼容性，但不再使用）
-  @Deprecated('Use initializeMetricsWithAI instead')
+  /// 初始化新宠物的基础指标
   Future<void> initializeBaseMetrics(String petId, PetSpecies species) async {
     state = const AsyncValue.loading();
     try {

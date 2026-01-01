@@ -7,3 +7,5 @@ export 'illness.dart';
 export 'diet.dart';
 export 'activity.dart';
 export 'care_plan.dart';
+export './metrics/metrics.dart';
+// export 'daily_health_indicators.dart';

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_config.dart';
 import '../models/models.dart';
+import '../services/ai/ai_service_provider.dart';
+import '../services/ai/ai_types.dart';
 import 'service_providers.dart';
 import 'auth_provider.dart';
 
@@ -294,19 +296,18 @@ class PetProfileNotifier extends StateNotifier<IDCardGenerationState> {
       String? description = 'A mysterious and lovely friend.';
 
       if (AppConfig.useLocalMode) {
-        if (AppConfig.geminiApiKey.isNotEmpty) {
-          // 有 API Key，使用真实 AI 生成
-          final gemini = _ref.read(geminiDirectServiceProvider);
-
+        final aiService = _ref.read(aiServiceProvider);
+        if (aiService != null) {
+          // 有 AI 服务，使用真实 AI 生成
           // 1. 生成性格标签
-          final personality = await gemini.generatePetPersonality(
+          final personality = await aiService.generatePetPersonality(
             imageBase64: avatarBase64,
           );
           tags = personality.tags;
           description = personality.description;
 
           // 2. 生成卡通头像
-          cartoonImageUrl = await gemini.generateCartoonAvatar(
+          cartoonImageUrl = await aiService.generateCartoonAvatar(
             imageBase64: avatarBase64,
             style: style,
           );
@@ -336,29 +337,30 @@ class PetProfileNotifier extends StateNotifier<IDCardGenerationState> {
         state = IDCardGenerationState(generatedCard: idCard);
       } else {
         // Supabase 模式
-        final gemini = _ref.read(geminiServiceProvider);
+        final aiService = _ref.read(aiServiceProvider);
         final storage = _ref.read(storageServiceProvider);
         final db = _ref.read(databaseServiceProvider);
 
+        if (aiService == null) {
+          throw Exception('AI service not available');
+        }
+
         // 1. 生成性格标签
-        final personality = await gemini.generatePetPersonality(
+        final personality = await aiService.generatePetPersonality(
           imageBase64: avatarBase64,
         );
         tags = personality.tags;
         description = personality.description;
 
         // 2. 生成卡通头像
-        final cartoonBytes = await gemini.generateCartoonAvatar(
+        final cartoonResult = await aiService.generateCartoonAvatar(
           imageBase64: avatarBase64,
           style: style,
         );
 
-        if (cartoonBytes != null) {
-          // 上传卡通头像
-          cartoonImageUrl = await storage.uploadIdCardImage(
-            petId: petId,
-            fileBytes: cartoonBytes,
-          );
+        if (cartoonResult != null) {
+          // cartoonResult 可能是 base64 或 URL，直接使用
+          cartoonImageUrl = cartoonResult;
         } else {
           // 使用原始头像
           cartoonImageUrl = avatarBase64;

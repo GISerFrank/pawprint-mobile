@@ -10,3 +10,4 @@ export 'diet_provider.dart';
 export 'activity_provider.dart';
 export 'pet_theme_provider.dart';
 export 'care_plan_provider.dart';
+export 'wellness_provider.dart';

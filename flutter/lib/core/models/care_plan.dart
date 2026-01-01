@@ -83,6 +83,36 @@ enum MetricValueType {
   
   /// 文本类型 (备注)
   text,
+  
+  /// 图片类型 (拍照记录)
+  image,
+  
+  /// 视频类型 (视频记录)
+  video,
+}
+
+/// ============================================
+/// 指标类别 (9大身体部位/系统)
+/// ============================================
+
+enum MetricCategory {
+  mouth('mouth', 'Mouth', '口腔', '👄', ['牙龈颜色', '牙齿', '口气', '舌头']),
+  eyes('eyes', 'Eyes', '眼睛', '👁️', ['清澈度', '分泌物', '泪痕']),
+  ears('ears', 'Ears', '耳朵', '👂', ['清洁度', '气味', '分泌物']),
+  coat('coat', 'Coat & Skin', '毛发皮肤', '✨', ['光泽', '脱毛', '皮屑', '寄生虫']),
+  digestion('digestion', 'Digestion', '消化', '🍽️', ['食欲', '排便', '呕吐']),
+  energy('energy', 'Energy', '精力', '⚡', ['精神', '运动意愿', '睡眠']),
+  hydration('hydration', 'Hydration', '水分', '💧', ['饮水量', '皮肤弹性']),
+  breathing('breathing', 'Breathing', '呼吸', '🌬️', ['频率', '咳嗽', '打喷嚏']),
+  mobility('mobility', 'Mobility', '行动', '🚶', ['步态', '姿态', '跛行']);
+
+  final String id;
+  final String name;
+  final String nameZh;
+  final String emoji;
+  final List<String> hints; // 子项检查提示
+
+  const MetricCategory(this.id, this.name, this.nameZh, this.emoji, this.hints);
 }
 
 /// ============================================
@@ -130,6 +160,9 @@ class CareMetric {
   /// 关联的疾病 ID (仅 postIllness)
   final String? linkedIllnessId;
   
+  /// 指标类别 (9大身体部位/系统，仅 wellness 类型使用)
+  final MetricCategory? metricCategory;
+  
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -153,6 +186,7 @@ class CareMetric {
     this.priority = 0,
     this.aiReason,
     this.linkedIllnessId,
+    this.metricCategory,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -190,6 +224,12 @@ class CareMetric {
       priority: json['priority'] as int? ?? 0,
       aiReason: json['ai_reason'] as String?,
       linkedIllnessId: json['linked_illness_id'] as String?,
+      metricCategory: json['metric_category'] != null
+          ? MetricCategory.values.firstWhere(
+              (e) => e.id == json['metric_category'],
+              orElse: () => MetricCategory.eyes,
+            )
+          : null,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
     );
@@ -215,6 +255,7 @@ class CareMetric {
     'priority': priority,
     'ai_reason': aiReason,
     'linked_illness_id': linkedIllnessId,
+    'metric_category': metricCategory?.id,
     'created_at': createdAt.toIso8601String(),
     'updated_at': updatedAt.toIso8601String(),
   };
@@ -239,6 +280,7 @@ class CareMetric {
     int? priority,
     String? aiReason,
     String? linkedIllnessId,
+    MetricCategory? metricCategory,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -262,6 +304,7 @@ class CareMetric {
       priority: priority ?? this.priority,
       aiReason: aiReason ?? this.aiReason,
       linkedIllnessId: linkedIllnessId ?? this.linkedIllnessId,
+      metricCategory: metricCategory ?? this.metricCategory,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -295,6 +338,9 @@ class MetricLog {
   
   /// 附加备注
   final String? notes;
+  
+  /// 附加图片URLs
+  final List<String>? imageUrls;
 
   const MetricLog({
     required this.id,
@@ -307,6 +353,7 @@ class MetricLog {
     this.selectionValue,
     this.textValue,
     this.notes,
+    this.imageUrls,
   });
 
   factory MetricLog.fromJson(Map<String, dynamic> json) {
@@ -321,6 +368,9 @@ class MetricLog {
       selectionValue: json['selection_value'] as String?,
       textValue: json['text_value'] as String?,
       notes: json['notes'] as String?,
+      imageUrls: json['image_urls'] != null 
+          ? List<String>.from(json['image_urls'] as List)
+          : null,
     );
   }
 
@@ -335,6 +385,7 @@ class MetricLog {
     'selection_value': selectionValue,
     'text_value': textValue,
     'notes': notes,
+    'image_urls': imageUrls,
   };
 }
 

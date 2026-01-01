@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_config.dart';
 import '../models/models.dart';
+import '../services/ai/ai_service_provider.dart';
 import 'service_providers.dart';
 import 'pet_provider.dart';
 import 'auth_provider.dart';
@@ -75,11 +76,11 @@ class AIAnalysisNotifier extends StateNotifier<AIAnalysisState> {
       }
 
       if (AppConfig.useLocalMode) {
-        // 本地模式：检查是否有 API Key，有则调用真实 API
-        if (AppConfig.geminiApiKey.isNotEmpty) {
-          // 使用 Gemini Direct Service
-          final gemini = _ref.read(geminiDirectServiceProvider);
-          result = await gemini.analyzePetHealth(
+        // 本地模式：检查是否有 AI 服务
+        final aiService = _ref.read(aiServiceProvider);
+        if (aiService != null) {
+          // 使用统一 AI 服务
+          result = await aiService.analyzePetHealth(
             symptoms: symptoms,
             bodyPart: bodyPart,
             currentImageBase64: currentImageBase64,
@@ -110,12 +111,16 @@ class AIAnalysisNotifier extends StateNotifier<AIAnalysisState> {
           createdAt: DateTime.now(),
         ));
       } else {
-        // Supabase 模式：调用 Edge Function
-        final gemini = _ref.read(geminiServiceProvider);
+        // Supabase 模式：使用 AI 服务（会自动选择 Edge Function）
+        final aiService = _ref.read(aiServiceProvider);
         final storage = _ref.read(storageServiceProvider);
         final db = _ref.read(databaseServiceProvider);
 
-        result = await gemini.analyzePetHealth(
+        if (aiService == null) {
+          throw Exception('AI service not available');
+        }
+
+        result = await aiService.analyzePetHealth(
           symptoms: symptoms,
           bodyPart: bodyPart,
           currentImageBase64: currentImageBase64,
