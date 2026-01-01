@@ -11,7 +11,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
+    
+  flutter_dotenv: ^5.1.0
+  
   # UI
   cupertino_icons: ^1.0.6
   google_fonts: ^6.1.0
@@ -44,6 +46,9 @@ dependencies:
   # Network
   http: ^1.2.0
 
+  # Gemini AI
+  google_generative_ai: ^0.4.6
+
   # Utilities
   intl: ^0.19.0
   uuid: ^4.3.3
@@ -53,13 +58,23 @@ dependencies:
 
   # Markdown
   flutter_markdown: ^0.6.18
+  
+  # Keyboard
+  keyboard_actions: ^4.2.0
+  
+  # Share
+  share_plus: ^7.2.1
+  path_provider: ^2.1.1
+  
+  # 3D pet model
+  model_viewer_plus: ^1.8.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
   flutter_lints: ^3.0.1
-
+  
   # Code Generation
   build_runner: ^2.4.8
   freezed: ^2.4.6
@@ -70,9 +85,12 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/models/
     - assets/images/
+    - assets/images/reference/
     - assets/icons/
     - assets/animations/
+    - .env
 
   fonts:
     - family: Quicksand
